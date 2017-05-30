@@ -500,6 +500,17 @@ def get_prc_roc_test(model, x,y):
     auroc = '{:0.4f}'.format(auROC)
     return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred})
 
+def get_prc_roc_test_effect_SNP_model(model, x1,x2,y):
+    y_pred = model.predict([x1,x2], verbose=0)
+    mets = CH.get_metrics(y, y_pred)
+    prec,rec,_ = precision_recall_curve(y, y_pred)
+    auPRC = average_precision_score(y,y_pred)
+    fpr,tpr,_ = roc_curve(y,y_pred)
+    auROC = auc(fpr,tpr)
+    auprc = '{:0.4f}'.format(auPRC)
+    auroc = '{:0.4f}'.format(auROC)
+    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred})
+
 def get_prc_roc_test_joint_model(model, x1,x2,x3,y):
     y_pred = model.predict([x1,x2,x3], verbose=0)
     mets = CH.get_metrics(y, y_pred)
@@ -550,6 +561,25 @@ def permute_mask(X_dsqtl,X_dsqtl_pred,X_mask,model):
                 max_diff = diff
     return(preds)
 
+def CENNTIPEDE_Effect_SNP_model(data1,data2):
+    ada = Adadelta()
+
+    #CENN side Footprints
+    input0 = Input(shape=(data1['train_data_X'].shape[1],))
+    lay1a = Dense(1000,activation='relu',name='HL1a',use_bias=True)(input0)
+
+    #CENN side Effect SNPS
+    input1 = Input(shape=(data2['train_data_X'].shape[1],))
+    lay1b = Dense(1000,activation='relu',name='HL1b',use_bias=True)(input1)
+
+    m = keras.layers.add([lay1a,lay1b])
+
+    mHL = Dense(100,activation='relu',name='mHL')(m)
+    predictions = Dense(1, activation='sigmoid')(mHL)
+    # predictions = Dense(1, activation='sigmoid')(m)
+    model = Model(inputs=[input0,input1], outputs=predictions)
+    model.compile(loss='binary_crossentropy',optimizer=ada,metrics=["binary_accuracy","mean_absolute_error"])
+    return(model)
 
 def CENNTIPEDE_CNNtipede_model(data1,data2,data3):
     ada = Adadelta()
@@ -582,6 +612,58 @@ def CENNTIPEDE_CNNtipede_model(data1,data2,data3):
     model.compile(loss='binary_crossentropy',optimizer=ada,metrics=["binary_accuracy","mean_absolute_error"])
     return(model)
 
+def CENNTIPEDE_CNNtipede_pwm_model(data1,data2,data3,kernel_size_seq=22):
+    conv_weights,num_filts_seq,good_pwms_idx = make_pwm_conv_filters(kernel_size_seq,rev_comp=False)
+
+    ada = Adadelta()
+
+    #CENN side Footprints
+    # input0 = Input(shape=(data1['train_data_X'].shape[1],),name='Footprints')
+    input0 = Input(shape=(num_filts_seq,),name='Footprints')
+    # lay1 = Dense(data1['train_data_X'].shape[1],activation='relu',name='HL1',use_bias=True)(input0)
+    # lay1a = Dense(num_filts_seq,activation='relu',name='HL1a',use_bias=True)(input0)
+
+    #CENN side Effect SNPS
+    # input1 = Input(shape=(data2['train_data_X'].shape[1],),name='Effect SNPs')
+    input1 = Input(shape=(num_filts_seq,),name='Effect SNPs')
+    # lay1 = Dense(data1['train_data_X'].shape[1],activation='relu',name='HL1',use_bias=True)(input0)
+    # lay1b = Dense(num_filts_seq,activation='relu',name='HL1b',use_bias=True)(input1)
+
+    #CNN side
+    input2 = Input(shape=(300,4), name='Sequence')
+    conv = Conv1D(filters=num_filts_seq,kernel_size=kernel_size_seq,padding='same',activation=None,name="CNN_conv",trainable=False,use_bias=False)(input2)
+    pool = MaxPooling1D(pool_size=300,name='WX_max')(conv)
+    f0 = Flatten(name='flatten_CNN')(pool)
+
+    # m = keras.layers.concatenate([lay1a,lay1b,f0])
+    # m = keras.layers.concatenate([input0,input1,f0])
+    m = keras.layers.add([input0,input1,f0])
+
+    mHL = Dense(1000,activation='relu',name='mHL')(m)
+    # mr = Reshape((num_filts_seq,3))(m)
+    # mrf = Flatten(name='flatten_merge')(mr)
+    predictions = Dense(1, activation='sigmoid')(mHL)
+    model = Model(inputs=[input0,input1,input2], outputs=predictions)
+    model.compile(loss='binary_crossentropy',optimizer=ada,metrics=["binary_accuracy","mean_absolute_error"])
+
+    ## Seed the filters with PWM
+    W0 = model.get_layer('CNN_conv').get_weights()
+    W0[0][:,:,:num_filts_seq] = conv_weights
+    W0[0] = W0[0][:,:,:num_filts_seq]
+    model.get_layer('CNN_conv').set_weights([W0[0]])
+
+    return(model,good_pwms_idx)
+
+def fit_CENNTIPEDE_Effect_SNP_model(model, data1, data2):
+    model_earlystopper = EarlyStopping(monitor='val_loss',patience=3,verbose=0)
+    model.fit([data1['train_data_X'],data2['train_data_X']], data1['train_data_Y'],
+        epochs=30,
+        shuffle=True,
+        validation_data = ([data1['val_data_X'],data2['val_data_X']],data1['val_data_Y']),
+        callbacks=[model_earlystopper],
+        verbose=2)
+    return(model)
+
 def fit_CENNTIPEDE_CNNtipede_model(model, data1, data2, data3):
     model_earlystopper = EarlyStopping(monitor='val_loss',patience=3,verbose=0)
     model.fit([data1['train_data_X'],data2['train_data_X'],data3['train_data_X']], data1['train_data_Y'],
@@ -592,8 +674,51 @@ def fit_CENNTIPEDE_CNNtipede_model(model, data1, data2, data3):
         verbose=2)
     return(model)
 
+def fit_CENNTIPEDE_CNNtipede_pwm_model(model, data1, data2, data3,good_pwms_idx):
+    model_earlystopper = EarlyStopping(monitor='val_loss',patience=3,verbose=0)
+    model.fit([data1['train_data_X'][:,good_pwms_idx],data2['train_data_X'][:,good_pwms_idx],data3['train_data_X']], data1['train_data_Y'],
+        epochs=30,
+        shuffle=True,
+        validation_data = ([data1['val_data_X'][:,good_pwms_idx],data2['val_data_X'][:,good_pwms_idx],data3['val_data_X']],data1['val_data_Y']),
+        callbacks=[model_earlystopper],
+        verbose=2)
+    return(model)
+
+
 def make_train_test_data(X,Y):
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.5, stratify=Y,random_state=7234)
     X_val, X_test, Y_val, Y_test = train_test_split(X_test, Y_test, test_size=0.5, stratify=Y_test,random_state=72340)
     data = CH.make_seq_data_dict([X_train, X_val, X_test, Y_train, Y_val,Y_test])
     return(data)
+
+def make_pwm_conv_filters(kernel_size,rev_comp=True):
+    pwms = glob.glob("/wsu/home/al/al37/al3786/EncodeDreamAnalysis/NewJaspar/PwmFiles/*.pfm")
+    num_filt = len(pwms)
+    bad_pwm = 0
+    pwm_arr = np.zeros((kernel_size,4,num_filt))
+    idx = 0
+    good_pwms_idx=[]
+    for idx_pwm, i in enumerate(pwms):
+        pwm = pd.read_csv(i,delim_whitespace=True,header=None,dtype=np.float64)
+        w = pwm.shape[1]
+        if w >= kernel_size:
+            bad_pwm +=1
+            continue
+        pwm=np.fliplr(pwm)
+        pwm = pwm.T / np.sum(pwm.T,axis=1)[:,None]
+        pwm[pwm<0.001] = 0.001
+        pwm = np.log2(pwm)+2
+
+        start = np.round((kernel_size/2)-(w/ 2))
+        pwm_arr[start:start+w,:,idx] = pwm
+        idx += 1
+        good_pwms_idx.append(idx_pwm)
+    pwm_arr = pwm_arr[:,:,:num_filt-bad_pwm]
+    if rev_comp:
+        conv_weights = np.concatenate([pwm_arr,pwm_arr[::-1,:,::-1]],axis=2)
+    else:
+        conv_weights = pwm_arr
+
+    num_filts = conv_weights.shape[-1]
+
+    return(conv_weights, num_filts, good_pwms_idx)
