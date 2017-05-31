@@ -698,7 +698,7 @@ def CENNTIPEDE_CNNtipede_pwm_model_proto(data1,data2,data3,kernel_size_seq=22):
 
     #CNN side
     input2 = Input(shape=(300,8), name='Sequence')
-    conv = Conv1D(filters=num_filts_seq,kernel_size=kernel_size_seq,padding='same',activation=None,name="CNN_conv",trainable=False,use_bias=False)(input2)
+    conv = Conv1D(filters=num_filts_seq,kernel_size=kernel_size_seq,padding='same',activation=None,name="CNN_conv",trainable=True,use_bias=True)(input2)
     pool = MaxPooling1D(pool_size=300,name='WX_max')(conv)
     f0 = Flatten(name='flatten_CNN')(pool)
 
@@ -707,9 +707,10 @@ def CENNTIPEDE_CNNtipede_pwm_model_proto(data1,data2,data3,kernel_size_seq=22):
     m = keras.layers.multiply([input0,input1,f0])
 
     mHL = Dense(500,activation='relu',name='mHL')(m)
+    mHLD = Dropout(0.25)(mHL)
     # mr = Reshape((num_filts_seq,3))(m)
     # mrf = Flatten(name='flatten_merge')(mr)
-    predictions = Dense(1, activation='sigmoid')(mHL)
+    predictions = Dense(1, activation='sigmoid')(mHLD)
     model = Model(inputs=[input0,input1,input2], outputs=predictions)
     model.compile(loss='binary_crossentropy',optimizer=ada,metrics=["binary_accuracy","mean_absolute_error"])
 
@@ -717,18 +718,18 @@ def CENNTIPEDE_CNNtipede_pwm_model_proto(data1,data2,data3,kernel_size_seq=22):
     W0 = model.get_layer('CNN_conv').get_weights()
     W0[0][:,:,:num_filts_seq] = conv_weights
     W0[0] = W0[0][:,:,:num_filts_seq]
-    model.get_layer('CNN_conv').set_weights([W0[0]])
+    # model.get_layer('CNN_conv').set_weights([W0[0]])
+    model.get_layer('CNN_conv').set_weights(W0)
 
     return(model,good_pwms_idx)
 
 def fit_CENNTIPEDE_CNNtipede_pwm_model_proto(model, data1, data2, data3,good_pwms_idx):
-    model_earlystopper = EarlyStopping(monitor='val_loss',patience=3,verbose=0)
+    model_earlystopper = EarlyStopping(monitor='val_loss',patience=5,verbose=0)
     model.fit([data1['train_data_X'][:,good_pwms_idx],data2['train_data_X'][:,good_pwms_idx],data3['train_data_X']], data1['train_data_Y'],
         epochs=30,
         shuffle=True,
         validation_data = ([data1['val_data_X'][:,good_pwms_idx],data2['val_data_X'][:,good_pwms_idx],data3['val_data_X']],data1['val_data_Y']),
         callbacks=[model_earlystopper],
-        class_weight={0:1.,1:50.},
         verbose=2)
     return(model)
 
