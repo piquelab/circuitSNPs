@@ -57,6 +57,7 @@ from keras.layers.local import LocallyConnected1D
 from keras.models import Model
 from keras.layers import Dense, Input
 from CNN_Models import cnn_helpers2 as CH
+from keras import regularizers
 
 def make_matrix():
 
@@ -437,11 +438,12 @@ def make_CENNTIPEDE_effect_snp_training_data():
 def make_CENNTIPEDE_model(data):
     ada = Adadelta()
     input0 = Input(shape=(data['train_data_X'].shape[1],))
-    lay1 = Dense(1000,activation='relu',name='HL1',use_bias=True)(input0)
-    lay2 = Dense(1000,activation='relu',name='HL2',use_bias=True)(lay1)
-    # lay3 = Dense(500,activation='relu',name='HL3',use_bias=True)(lay2)
-    # do = Dropout(0.75)(lay2)
-    predictions = Dense(1, activation='sigmoid')(lay2)
+    lay1 = Dense(500,activation='relu',name='HL1',use_bias=True)(input0)
+    lay2 = Dense(500,activation='relu',name='HL2',use_bias=True)(lay1)
+    do1 = Dropout(0.25)(lay2)
+    lay3 = Dense(500,activation='relu',name='HL3',use_bias=True)(do1)
+    do2 = Dropout(0.25)(lay3)
+    predictions = Dense(1, activation='sigmoid')(do2)
 
     model = Model(inputs=input0, outputs=predictions)
     model.compile(loss='binary_crossentropy',
@@ -449,9 +451,43 @@ def make_CENNTIPEDE_model(data):
                     metrics=["binary_accuracy","mean_absolute_error"])
     return(model)
 
+def make_CENNTIPEDE_AE_model(data):
+    ada = Adadelta()
+    input0 = Input(shape=(data['train_data_X'].shape[1],))
+    encoded = Dense(500,activation='relu',name='e1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(input0)
+    encoded = Dense(250,activation='relu',name='e2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(encoded)
+    # encoded = Dense(250,activation='relu',name='e2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(encoded)
+    # encoded = Dense(100,activation='relu',name='e3',use_bias=True)(encoded)
+    # encoded = Dense(50,activation='relu',name='e4',use_bias=True)(encoded)
+    # encoded = Dense(5,activation='relu',name='e5',use_bias=True)(encoded)
+
+    # decoded = Dense(100,activation='relu',name='d1',use_bias=True)(encoded)
+    # decoded = Dense(250,activation='relu',name='d2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(decoded)
+    decoded = Dense(500,activation='relu',name='d1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(encoded)
+    decoded = Dense(data['train_data_X'].shape[1],activation='relu',name='d2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(decoded)
+
+    # predictions = Dense(1, activation='sigmoid')(do2)
+
+    model = Model(inputs=input0, outputs=decoded)
+    model.compile(loss='binary_crossentropy',
+                    optimizer=ada,
+                    metrics=["binary_accuracy","mean_absolute_error"])
+    return(model)
+
+def make_CENNTIPEDE_RNN_model(data):
+    ada = Adadelta()
+    input0 = Input(shape=(data['train_data_X'].shape[1],))
+    gru = GRU(2)(input0)
+    hl = Dense(50)(gru)
+    pred = Dense(1, activation='sigmoid')(hl)
+    model = Model(inputs=input0, outputs=pred)
+    model.compile(loss='binary_crossentropy',
+                    optimizer=ada,
+                    metrics=["binary_accuracy","mean_absolute_error"])
+    return(model)
 
 def fit_CENNTIPEDE_model(model, data):
-    model_earlystopper = EarlyStopping(monitor='val_loss',patience=3,verbose=0)
+    model_earlystopper = EarlyStopping(monitor='val_loss',patience=5,verbose=0)
     model.fit(data['train_data_X'], data['train_data_Y'],
         epochs=30,
         shuffle=True,
@@ -460,9 +496,19 @@ def fit_CENNTIPEDE_model(model, data):
         verbose=2)
     return(model)
 
+def fit_CENNTIPEDE_AE_model(model, data):
+    model_earlystopper = EarlyStopping(monitor='val_loss',patience=5,verbose=0)
+    model.fit(data['train_data_X'], data['train_data_X'],
+        epochs=30,
+        # batch_size=256,
+        shuffle=True,
+        validation_data = (data['val_data_X'],data['val_data_X']),
+        callbacks=[model_earlystopper],
+        verbose=2)
+    return(model)
+
 
 def get_prc_roc_validation(model, data):
-    # from CNN_Models import cnn_helpers2 as CH
     x = data['test_data_X']
     y = data['test_data_Y']
     y_pred = model.predict(x, verbose=0)
@@ -471,9 +517,39 @@ def get_prc_roc_validation(model, data):
     auPRC = average_precision_score(y,y_pred)
     fpr,tpr,_ = roc_curve(y,y_pred)
     auROC = auc(fpr,tpr)
+    prec_at_10_rec = prec[np.abs(rec-0.1).argmin()]
     auprc = '{:0.4f}'.format(auPRC)
     auroc = '{:0.4f}'.format(auROC)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred})
+    prec_10 = '{:0.4f}'.format(prec_at_10_rec)
+    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred,'prec_10':prec_10})
+
+def plot_auprc_CENNTIPEDE_validation(*met_dicts):
+    plt.figure(figsize=(8,8))
+    for idx,met_dict in enumerate(met_dicts):
+        plt.plot(met_dict['rec'],met_dict['prec'],label="Model {1} $|$ {0} $|$ {2}".format(met_dict['auprc'],idx,met_dict['prec_10']))
+    plt.grid()
+    plt.axvline(0.1,color='grey',ls="--")
+    plt.ylabel('Precision',fontsize = 20)
+    plt.xlabel('Recall',fontsize = 20)
+    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
+    plt.setp(leg.get_title(),fontsize=20)
+    plt.title("CENNTIPEDE",fontsize=22)
+
+def permute_ES_preds(X_dsqtl,X_dsqtl_pred,X_mask,model):
+    preds = np.zeros(X_dsqtl.shape[0])
+    for idx_d,i in enumerate(X_dsqtl):
+        max_diff = 0
+        pred1 = X_dsqtl_pred[idx_d]
+        i_copy = i.copy()
+        for idx in np.where(X_mask[idx_d]==1)[0]:
+            i_copy1 = i_copy.copy()
+            i_copy1[idx] = 0
+            pred = model.predict(np.expand_dims(i_copy1,axis=0))
+            diff = np.absolute(log_diffs(pred1,pred))
+            if diff > max_diff:
+                preds[idx_d] = diff
+                max_diff = diff
+    return(preds)
 
 def get_prc_roc_validation_joint_model(model, data1,data2,data3):
     # from CNN_Models import cnn_helpers2 as CH
@@ -789,7 +865,7 @@ def make_pwm_conv_filters(kernel_size,width=4,rev_comp=True):
         # pwm=np.fliplr(pwm)
         # pwm = pwm.T / np.sum(pwm.T,axis=1)[:,None]
         # pwm[pwm<0.001] = 0.001
-        # pwm = np.log2(pwm)+2
+        pwm = np.log2(pwm)+2
 
         start = np.round((kernel_size/2)-(w/ 2))
         if width==4:
