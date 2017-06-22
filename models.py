@@ -66,8 +66,8 @@ from CNN_Models import cnn_helpers2 as CH
 def make_CENNTIPEDE_model(data):
     ada = Adadelta()
     input0 = Input(shape=(data['train_data_X'].shape[1],))
-    lay1 = Dense(500,activation='relu',name='HL1',use_bias=False,activity_regularizer=regularizers.l1(10e-5))(input0)
-    lay2 = Dense(100,activation='relu',name='HL2',use_bias=False,activity_regularizer=regularizers.l1(10e-5))(lay1)
+    lay1 = Dense(100,activation='relu',name='HL1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(input0)
+    lay2 = Dense(100,activation='relu',name='HL2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(lay1)
     # do1 = Dropout(0.25)(lay2)
     # lay3 = Dense(500,activation='relu',name='HL3',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(lay2)
     # do2 = Dropout(0.25)(lay2)
@@ -104,22 +104,29 @@ def make_CENNTIPEDE_Embedding_model(data):
 
 def make_CENNTIPEDE_AE_model(data):
     ada = Adadelta()
+    # input0a = Input(shape=(data['train_data_X'].shape[1],))
+    # enba = Embedding(2,2, input_length=(data['train_data_X'].shape[1]))(input0a)
+    # pre_model = Model(inputs=input0a, outputs=enba)
+    # pre_model.compile(loss='binary_crossentropy',
+                    # optimizer=ada,
+                    # metrics=["binary_accuracy","mean_absolute_error"])
+
     input0 = Input(shape=(data['train_data_X'].shape[1],))
-    encoded = Dense(500,activation='relu',name='e1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(input0)
-    encoded = Dense(250,activation='relu',name='e2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(encoded)
+    enb = Embedding(2,2, input_length=(data['train_data_X'].shape[1]))(input0)
+    # enb = Embedding(data['train_data_X'].shape[1],2, input_length=2)(input0)
+    enb = Flatten()(enb)
+    encoded = Dense(10,activation='relu',name='e1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(enb)
+    encoded = Dense(5,activation='relu',name='e2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(encoded)
     # encoded = Dense(250,activation='relu',name='e2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(encoded)
     # encoded = Dense(100,activation='relu',name='e3',use_bias=True)(encoded)
     # encoded = Dense(50,activation='relu',name='e4',use_bias=True)(encoded)
     # encoded = Dense(5,activation='relu',name='e5',use_bias=True)(encoded)
 
-    # decoded = Dense(100,activation='relu',name='d1',use_bias=True)(encoded)
-    # decoded = Dense(250,activation='relu',name='d2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(decoded)
-    decoded = Dense(500,activation='relu',name='d1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(encoded)
+    decoded = Dense(10,activation='relu',name='d1',use_bias=True)(encoded)
     decoded = Dense(data['train_data_X'].shape[1],activation='relu',name='d2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(decoded)
-
-    # predictions = Dense(1, activation='sigmoid')(do2)
-
-    model = Model(inputs=input0, outputs=decoded)
+    # decoded = Reshape((data['train_data_X'].shape[1],2))(decoded)
+    # decoded = Flatten()(decoded)
+    model = Model(inputs=input0,outputs=decoded)
     model.compile(loss='binary_crossentropy',
                     optimizer=ada,
                     metrics=["binary_accuracy","mean_absolute_error"])
@@ -148,7 +155,7 @@ def fit_CENNTIPEDE_model(model, data):
     return(model)
 
 def fit_CENNTIPEDE_AE_model(model, data):
-    model_earlystopper = EarlyStopping(monitor='val_loss',patience=5,verbose=0)
+    model_earlystopper = EarlyStopping(monitor='val_loss',patience=5,verbose=0, min_delta=0.0005)
     model.fit(data['train_data_X'], data['train_data_X'],
         epochs=30,
         # batch_size=256,

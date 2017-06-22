@@ -60,6 +60,45 @@ from keras import regularizers
 
 from CNN_Models import cnn_helpers2 as CH
 
+def make_CNNTIPEDE_softmax_Y():
+    ### Make a Y matrix where each motif is coded as 0,1,2,3
+    ### 0 no footprint, 1 footprint, 2 snp in footprint, 3 effect snp in footprint
+
+    ### Load Footprint locations
+    pos_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_pos.h5','df')
+    neg_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_neg.h5','df')
+    X_pos =np.array(pos_data.iloc[:,3:])
+    X_neg =np.array(neg_data.iloc[:,3:])
+    X = np.vstack([X_pos,X_neg])
+    # Y = np.zeros_like(X)
+    X[X>1] = 1
+
+    Y = X.copy()
+
+    ## Load SNPs that occur in the above footprints
+    pos_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_pos.h5','df')
+    neg_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_neg.h5','df')
+    X_pos =np.array(pos_data.iloc[:,3:])
+    X_neg =np.array(neg_data.iloc[:,3:])
+    X = np.vstack([X_pos,X_neg])
+    X[X>1] = 1
+
+    Y[np.nonzero(X)] = 2
+
+
+    ## Load Effect SNPs
+    pos_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_pos_1.h5','df')
+    neg_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_neg_1.h5','df')
+    X_pos =np.array(pos_data.iloc[:,3:])
+    X_neg =np.array(neg_data.iloc[:,3:])
+    X = np.vstack([X_pos,X_neg])
+    X[X>1] = 1
+
+    Y[np.nonzero(X)] = 3
+
+    return(Y)
+
+
 def make_cindy_mpra_test_data_ES():
     mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/CENNTIPEDE_notebook/cindy_dsqtl_300_windows.tab'
     effect_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno2/*.gz')
@@ -448,6 +487,47 @@ def make_beers_test_matrix():
 
     df_beers_neg.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_windows.h5','df',mode='w')
 
+def make_beers_test_matrix_single_snp():
+    """
+    Use only snps to create the dsQTL test data - instead of windowing around snps.
+    """
+
+    df_beers_pos = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos.bed',header=None,names=['chr','start','stop'],delim_whitespace=True)
+    df_beers_neg = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg.bed',header=None,names=['chr','start','stop'],delim_whitespace=True)
+    pwm_files = glob.glob('/nfs/rprdata/Anthony/data/combo/combo/*.gz')
+    pwm_files = sorted(pwm_files)
+    # pwm_files = natsort.natsorted(pwm_files)
+
+    # df_ = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/input_windows.bed',delim_whitespace=True,header=None,names=['chr','start','stop'])
+
+    ### Populate positive matrix using beers windows and pwm files
+    for idx,pwm_file in enumerate(pwm_files):
+        pwm_name = os.path.basename(pwm_file).split(".")[0]
+        cmd_str = "bedtools slop -g /wsu/home/groups/piquelab/footprint.fungei/byTreatAllRepsMerged/centipede/x8bFiles/new.chromSizes.txt -l 0 -r 1 -i {0} | bedtools intersect -a /wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos.bed -b stdin -c | cut -f4".format(pwm_file)
+        raw_out = subprocess.check_output(cmd_str,shell=True)
+        out_list = raw_out.split('\n')[:-1]
+        df_beers_pos[pwm_name] = np.array(out_list,dtype='uint8')
+
+        if idx % 100 == 0:
+            df_beers_pos.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos_snps_only.h5','df',mode='w')
+
+    df_beers_pos.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos_snps_only.h5','df',mode='w')
+
+    ### Populate neg matrix using beers windows and pwm files
+    for idx,pwm_file in enumerate(pwm_files):
+        pwm_name = os.path.basename(pwm_file).split(".")[0]
+        cmd_str = "bedtools slop -g /wsu/home/groups/piquelab/footprint.fungei/byTreatAllRepsMerged/centipede/x8bFiles/new.chromSizes.txt -l 0 -r 1 -i {0} | bedtools intersect -a /wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg.bed -b stdin -c | cut -f4".format(pwm_file)
+        # cmd_str = "bedtools intersect -a /wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg.bed -b {0} -c | cut -f4".format(pwm_file)
+        raw_out = subprocess.check_output(cmd_str,shell=True)
+        out_list = raw_out.split('\n')[:-1]
+        df_beers_neg[pwm_name] = np.array(out_list,dtype='uint8')
+
+        if idx % 100 == 0:
+            df_beers_neg.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_snps_only.h5','df',mode='w')
+
+    df_beers_neg.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_snps_only.h5','df',mode='w')
+
+
 def make_beers_effect_snp_test_matrix():
 
     df_beers_pos = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos_windows.bed',header=None,names=['chr','start','stop'],delim_whitespace=True)
@@ -528,9 +608,63 @@ def make_beers_effect_snp_test_matrix_1():
 
     df_beers_neg.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_effect_snp_windows_1.h5','df',mode='w')
 
+def make_beers_effect_snp_test_matrix_single_snp():
+
+    df_beers_pos = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos.bed',header=None,names=['chr','start','stop'],delim_whitespace=True)
+
+    df_beers_neg = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg.bed',header=None,names=['chr','start','stop'],delim_whitespace=True)
+
+    effect_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno2/*.gz')
+    effect_snps = sorted(effect_snps)
+
+    ### Populate positive matrix using beers windows and pwm files
+    for idx,effect_snp_file in enumerate(effect_snps):
+        pwm_name = os.path.basename(effect_snp_file).split(".")[0]
+        cmd_str = "less {0} | sed -E '/1$/d' | bedtools intersect -a /wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos.bed -b stdin -c | cut -f4".format(effect_snp_file)
+        try:
+            raw_out = subprocess.check_output(cmd_str,shell=True)
+            out_list = raw_out.split('\n')[:-1]
+            df_beers_pos[pwm_name] = np.array(out_list,dtype='uint8')
+        except:
+            df_beers_pos[pwm_name] = 0
+
+        if idx % 100 == 0:
+            df_beers_pos.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos_effect_snps_only.h5','df',mode='w')
+
+    df_beers_pos.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos_effect_snps_only.h5','df',mode='w')
+
+    ### Populate neg matrix using beers windows and pwm files
+    for idx,effect_snp_file in enumerate(effect_snps):
+        pwm_name = os.path.basename(effect_snp_file).split(".")[0]
+        cmd_str = "less {0} | sed -E '/1$/d' | bedtools intersect -a /wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg.bed -b stdin -c | cut -f4".format(effect_snp_file)
+        try:
+            raw_out = subprocess.check_output(cmd_str,shell=True)
+            out_list = raw_out.split('\n')[:-1]
+            df_beers_neg[pwm_name] = np.array(out_list,dtype='uint8')
+        except:
+            df_beers_neg[pwm_name] = 0
+        if idx % 100 == 0:
+            df_beers_neg.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_effect_snps_only.h5','df',mode='w')
+
+    df_beers_neg.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_effect_snps_only.h5','df',mode='w')
+
 def load_beers_dsqtl_test_data():
     df_pos = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos_windows.h5','df')
     df_neg = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_windows.h5','df')
+
+    X_test_pos =np.array(df_pos.iloc[:,3:])
+    X_test_neg =np.array(df_neg.iloc[:,3:])
+
+    X_dsqtl=np.vstack([X_test_pos,X_test_neg])
+    X_dsqtl[X_dsqtl>1] = 1
+
+    Y_dsqtl=np.hstack([np.ones(X_test_pos.shape[0]),np.zeros(X_test_neg.shape[0])])
+
+    return(X_dsqtl,Y_dsqtl)
+
+def load_beers_dsqtl_test_data_single_snp():
+    df_pos = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos_snps_only.h5','df')
+    df_neg = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_snps_only.h5','df')
 
     X_test_pos =np.array(df_pos.iloc[:,3:])
     X_test_neg =np.array(df_neg.iloc[:,3:])
@@ -571,6 +705,19 @@ def load_beers_dsqtl_effect_snp_test_data_1():
     return(X_dsqtl,Y_dsqtl)
 
 
+def load_beers_dsqtl_effect_snp_test_data_single_snp():
+    df_pos = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos_effect_snps_only.h5','df')
+    df_neg = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_effect_snps_only.h5','df')
+
+    X_test_pos =np.array(df_pos.iloc[:,3:])
+    X_test_neg =np.array(df_neg.iloc[:,3:])
+
+    X_dsqtl=np.vstack([X_test_pos,X_test_neg])
+    X_dsqtl[X_dsqtl>1] = 1
+
+    Y_dsqtl=np.hstack([np.ones(X_test_pos.shape[0]),np.zeros(X_test_neg.shape[0])])
+
+    return(X_dsqtl,Y_dsqtl)
 def make_CENNTIPEDE_training_data():
     # from CNN_Models import cnn_helpers2 as CH
     pos_data = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/dnase_pos_df.txt',delim_whitespace=True)
