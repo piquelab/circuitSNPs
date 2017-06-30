@@ -66,8 +66,8 @@ from CNN_Models import cnn_helpers2 as CH
 def make_CENNTIPEDE_model(data):
     ada = Adadelta()
     input0 = Input(shape=(data['train_data_X'].shape[1],))
-    lay1 = Dense(100,activation='relu',name='HL1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(input0)
-    lay2 = Dense(100,activation='relu',name='HL2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(lay1)
+    lay1 = Dense(50,activation='relu',name='HL1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(input0)
+    lay2 = Dense(10,activation='relu',name='HL2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(lay1)
     # do1 = Dropout(0.25)(lay2)
     # lay3 = Dense(500,activation='relu',name='HL3',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(lay2)
     # do2 = Dropout(0.25)(lay2)
@@ -311,3 +311,41 @@ def fit_CENNTIPEDE_CNNtipede_pwm_model_proto(model, data1, data2, data3,good_pwm
         callbacks=[model_earlystopper],
         verbose=2)
     return(model)
+
+def make_CNNTIPEDE_softmax_Y():
+    ### Make a Y matrix where each motif is coded as 0,1,2,3
+    ### 0 no footprint, 1 footprint, 2 snp in footprint, 3 effect snp in footprint
+
+    ### Load Footprint locations
+    pos_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_pos.h5','df')
+    neg_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_neg.h5','df')
+    X_pos =np.array(pos_data.iloc[:,3:])
+    X_neg =np.array(neg_data.iloc[:,3:])
+    X = np.vstack([X_pos,X_neg])
+    # Y = np.zeros_like(X)
+    X[X>1] = 1
+
+    Y = X.copy()
+
+    ## Load SNPs that occur in the above footprints
+    pos_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_pos.h5','df')
+    neg_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_neg.h5','df')
+    X_pos =np.array(pos_data.iloc[:,3:])
+    X_neg =np.array(neg_data.iloc[:,3:])
+    X = np.vstack([X_pos,X_neg])
+    X[X>1] = 1
+
+    Y[np.nonzero(X)] = 2
+
+
+    ## Load Effect SNPs
+    pos_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_pos_1.h5','df')
+    neg_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_neg_1.h5','df')
+    X_pos =np.array(pos_data.iloc[:,3:])
+    X_neg =np.array(neg_data.iloc[:,3:])
+    X = np.vstack([X_pos,X_neg])
+    X[X>1] = 1
+
+    Y[np.nonzero(X)] = 3
+
+    return(Y)

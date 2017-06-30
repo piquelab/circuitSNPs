@@ -19,88 +19,125 @@ from mpl_toolkits.axes_grid import make_axes_locatable
 
 from sklearn.model_selection import train_test_split
 
-from sklearn.metrics import precision_recall_curve
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import roc_curve, auc
-from sklearn.preprocessing import maxabs_scale
-from sklearn.preprocessing import minmax_scale
-from keras.preprocessing import sequence
-from keras.optimizers import RMSprop,Adadelta
-from keras.optimizers import SGD
-from keras.models import Sequential
-from keras.models import load_model
-from keras.layers.core import Dense, Dropout, Activation, Flatten
-from keras.layers.convolutional import Conv1D,Conv2D,Convolution1D,Convolution2D, MaxPooling1D, MaxPooling2D
-from keras.regularizers import l2, l1, l1_l2
-from keras.layers.normalization import BatchNormalization
-from keras.layers.advanced_activations import LeakyReLU,ELU
-from keras.constraints import maxnorm, nonneg,unitnorm
-from keras.layers.recurrent import LSTM, GRU
-from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
-from keras import backend as K
-from keras.utils.io_utils import HDF5Matrix
-from keras.layers.noise import GaussianDropout
-from keras.layers import Merge
-from keras.layers.local import LocallyConnected1D
-from keras.layers.convolutional import ZeroPadding1D
-from keras.layers.core import Reshape
-from keras.layers.convolutional import Conv1D,Conv2D,Convolution1D,Convolution2D, MaxPooling1D, MaxPooling2D
-from keras.layers.pooling import GlobalMaxPooling2D,GlobalMaxPooling1D
-from keras.optimizers import Nadam
-from keras.initializers import Constant
-from keras.optimizers import Adadelta
-import keras.layers
-from keras.layers.convolutional import Conv1D
-from keras.layers.merge import Concatenate
-from keras.layers.local import LocallyConnected1D
-from keras.models import Model
-from keras.layers import Dense, Input
-from keras import regularizers
+# from sklearn.metrics import precision_recall_curve
+# from sklearn.metrics import average_precision_score
+# from sklearn.metrics import roc_auc_score
+# from sklearn.metrics import roc_curve, auc
+# from sklearn.preprocessing import maxabs_scale
+# from sklearn.preprocessing import minmax_scale
+# from keras.preprocessing import sequence
+# from keras.optimizers import RMSprop,Adadelta
+# from keras.optimizers import SGD
+# from keras.models import Sequential
+# from keras.models import load_model
+# from keras.layers.core import Dense, Dropout, Activation, Flatten
+# from keras.layers.convolutional import Conv1D,Conv2D,Convolution1D,Convolution2D, MaxPooling1D, MaxPooling2D
+# from keras.regularizers import l2, l1, l1_l2
+# from keras.layers.normalization import BatchNormalization
+# from keras.layers.advanced_activations import LeakyReLU,ELU
+# from keras.constraints import maxnorm, nonneg,unitnorm
+# from keras.layers.recurrent import LSTM, GRU
+# from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+# from keras import backend as K
+# from keras.utils.io_utils import HDF5Matrix
+# from keras.layers.noise import GaussianDropout
+# from keras.layers import Merge
+# from keras.layers.local import LocallyConnected1D
+# from keras.layers.convolutional import ZeroPadding1D
+# from keras.layers.core import Reshape
+# from keras.layers.convolutional import Conv1D,Conv2D,Convolution1D,Convolution2D, MaxPooling1D, MaxPooling2D
+# from keras.layers.pooling import GlobalMaxPooling2D,GlobalMaxPooling1D
+# from keras.optimizers import Nadam
+# from keras.initializers import Constant
+# from keras.optimizers import Adadelta
+# import keras.layers
+# from keras.layers.convolutional import Conv1D# from keras.layers.merge import Co# from keras.layers.local import LocallyConnected1D
+# from keras.models import Model
+# from keras.layers import Dense, Input
+# from keras import regularizers
 
 from CNN_Models import cnn_helpers2 as CH
+from collections import OrderedDict
+from scipy import sparse
 
-def make_CNNTIPEDE_softmax_Y():
-    ### Make a Y matrix where each motif is coded as 0,1,2,3
-    ### 0 no footprint, 1 footprint, 2 snp in footprint, 3 effect snp in footprint
+def load_compendium_footprints():
+    foot = sparse.load_npz('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprint_sparse.npz')
+    foot = foot.toarray()
+    return(foot)
 
-    ### Load Footprint locations
-    pos_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_pos.h5','df')
-    neg_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_neg.h5','df')
-    X_pos =np.array(pos_data.iloc[:,3:])
-    X_neg =np.array(neg_data.iloc[:,3:])
-    X = np.vstack([X_pos,X_neg])
-    # Y = np.zeros_like(X)
+def load_compendium_ES():
+    es = sparse.load_npz('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_es_sparse.npz')
+    es = es.toarray()
+    return(es)
+
+def make_all_compendium_ES():
+    compendium_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed'
+    effect_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno2/*.gz')
+    effect_snps = sorted(effect_snps)
+    compendium_df = pd.read_csv(compendium_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
+
+    for idx,effect_snp in enumerate(effect_snps):
+        pwm_name = os.path.basename(effect_snp).split(".")[0]
+        cmd_str = "less {1} | sed -E '/#1/d' | bedtools intersect -a {0} -b stdin -c | cut -f4".format(compendium_bed_file,effect_snp)
+        raw_out = subprocess.check_output(cmd_str,shell=True)
+        out_list = raw_out.split('\n')[:-1]
+        try:
+            compendium_df[pwm_name] = np.array(out_list,dtype='uint8')
+        except:
+            compendium_df[pwm_name] = 0
+
+        if idx % 100 == 0:
+            compendium_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.h5','df',mode='w')
+
+    compendium_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.h5','df',mode='w')
+
+def make_all_compendium_footprints():
+    compendium_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed'
+    pwm_files = glob.glob('/nfs/rprdata/Anthony/data/combo/combo/*.gz')
+    pwm_files = sorted(pwm_files)
+    compendium_df = pd.read_csv(compendium_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
+
+    for idx,pwm_file in enumerate(pwm_files):
+        pwm_name = os.path.basename(pwm_file).split(".")[0]
+
+        cmd_str = "bedtools slop -g /wsu/home/groups/piquelab/footprint.fungei/byTreatAllRepsMerged/centipede/x8bFiles/new.chromSizes.txt -l 0 -r 1 -i {1} | bedtools intersect -a {0} -b stdin -c | cut -f4".format(compendium_bed_file,pwm_file)
+        raw_out = subprocess.check_output(cmd_str,shell=True)
+        out_list = raw_out.split('\n')[:-1]
+        compendium_df[pwm_name] = np.array(out_list,dtype='uint8')
+
+        if idx % 100 == 0:
+            compendium_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprints.h5','df',mode='w')
+
+    compendium_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprints.h5','df',mode='w')
+
+def load_cindy_mpra_footprints():
+    df = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_dsqtl_footprint_single_snp.h5','df')
+    X=np.array(df.iloc[:,3:])
     X[X>1] = 1
+    return(X)
 
-    Y = X.copy()
-
-    ## Load SNPs that occur in the above footprints
-    pos_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_pos.h5','df')
-    neg_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_neg.h5','df')
-    X_pos =np.array(pos_data.iloc[:,3:])
-    X_neg =np.array(neg_data.iloc[:,3:])
-    X = np.vstack([X_pos,X_neg])
+def load_cindy_mpra_ES():
+    df = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_dsqtl_ES_single_snp.h5','df')
+    X=np.array(df.iloc[:,3:])
     X[X>1] = 1
+    return(X)
 
-    Y[np.nonzero(X)] = 2
 
-
-    ## Load Effect SNPs
-    pos_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_pos_1.h5','df')
-    neg_data = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_neg_1.h5','df')
-    X_pos =np.array(pos_data.iloc[:,3:])
-    X_neg =np.array(neg_data.iloc[:,3:])
-    X = np.vstack([X_pos,X_neg])
+def load_tewhey_circuit_footprints():
+    df = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_footprint_single_snp.h5','df')
+    X=np.array(df.iloc[:,3:])
     X[X>1] = 1
+    return(X)
 
-    Y[np.nonzero(X)] = 3
-
-    return(Y)
-
+def load_tewhey_circuit_ES():
+    df = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_effect_single_snp.h5','df')
+    X=np.array(df.iloc[:,3:])
+    X[X>1] = 1
+    return(X)
 
 def make_cindy_mpra_test_data_ES():
-    mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/CENNTIPEDE_notebook/cindy_dsqtl_300_windows.tab'
+    # mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_mpra_pos.bed'
+    mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_mpra_300_pos.bed'
     effect_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno2/*.gz')
     effect_snps = sorted(effect_snps)
     mpra_df = pd.read_csv(mpra_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
@@ -116,30 +153,32 @@ def make_cindy_mpra_test_data_ES():
             mpra_df[pwm_name] = 0
 
         if idx % 100 == 0:
-            mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_dsqtl_effect_snp_mat.h5','df',mode='w')
+            mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_dsqtl_ES_single_snp.h5','df',mode='w')
 
-    mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_dsqtl_effect_snp_mat.h5','df',mode='w')
+    mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_dsqtl_ES_single_snp.h5','df',mode='w')
 
-def make_cindy_mpra_test_data():
-    mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/CENNTIPEDE_notebook/cindy_dsqtl_300_windows.tab'
+def make_cindy_mpra_test_data_single_snp():
+    # mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_mpra_pos.bed'
+    mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_mpra_300_pos.bed'
     pwm_files = glob.glob('/nfs/rprdata/Anthony/data/combo/combo/*.gz')
     pwm_files = sorted(pwm_files)
     mpra_df = pd.read_csv(mpra_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
 
     for idx,pwm_file in enumerate(pwm_files):
         pwm_name = os.path.basename(pwm_file).split(".")[0]
-        cmd_str = "bedtools intersect -a {0} -b {1} -c | cut -f4".format(mpra_bed_file,pwm_file)
+
+        cmd_str = "bedtools slop -g /wsu/home/groups/piquelab/footprint.fungei/byTreatAllRepsMerged/centipede/x8bFiles/new.chromSizes.txt -l 0 -r 1 -i {1} | bedtools intersect -a {0} -b stdin -c | cut -f4".format(mpra_bed_file,pwm_file)
         raw_out = subprocess.check_output(cmd_str,shell=True)
         out_list = raw_out.split('\n')[:-1]
         mpra_df[pwm_name] = np.array(out_list,dtype='uint8')
 
         if idx % 100 == 0:
-            mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_dsqtl_footprint_mat.h5','df',mode='w')
+            mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_dsqtl_footprint_single_snp.h5','df',mode='w')
 
-    mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_dsqtl_footprint_mat.h5','df',mode='w')
+    mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/cindy_dsqtl_footprint_single_snp.h5','df',mode='w')
 
 def make_tewhey_test_data_ES():
-    mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/CENNTIPEDE_notebook/mpra_300_windows.tab'
+    mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_300_windows.tab'
     effect_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno2/*.gz')
     effect_snps = sorted(effect_snps)
     mpra_df = pd.read_csv(mpra_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
@@ -155,12 +194,33 @@ def make_tewhey_test_data_ES():
             mpra_df[pwm_name] = 0
 
         if idx % 100 == 0:
-            mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_effect_snp_mat.h5','df',mode='w')
+            mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_effect_snp_window.h5','df',mode='w')
 
-    mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_effect_snp_mat.h5','df',mode='w')
+    mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_effect_snp_window.h5','df',mode='w')
 
-def make_tewhey_test_data():
-    mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/CENNTIPEDE_notebook/mpra_300_windows.tab'
+def make_tewhey_test_data_ES_single_snp():
+    mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_300_pos.bed'
+    effect_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno2/*.gz')
+    effect_snps = sorted(effect_snps)
+    mpra_df = pd.read_csv(mpra_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
+
+    for idx,effect_snp in enumerate(effect_snps):
+        pwm_name = os.path.basename(effect_snp).split(".")[0]
+        cmd_str = "less {1} | sed -E '/#1/d' | bedtools intersect -a {0} -b stdin -c | cut -f4".format(mpra_bed_file,effect_snp)
+        raw_out = subprocess.check_output(cmd_str,shell=True)
+        out_list = raw_out.split('\n')[:-1]
+        try:
+            mpra_df[pwm_name] = np.array(out_list,dtype='uint8')
+        except:
+            mpra_df[pwm_name] = 0
+
+        if idx % 100 == 0:
+            mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_effect_single_snp.h5','df',mode='w')
+
+    mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_effect_single_snp.h5','df',mode='w')
+
+def make_tewhey_test_data_window():
+    mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_300_windows.tab'
     pwm_files = glob.glob('/nfs/rprdata/Anthony/data/combo/combo/*.gz')
     pwm_files = sorted(pwm_files)
     mpra_df = pd.read_csv(mpra_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
@@ -173,14 +233,27 @@ def make_tewhey_test_data():
         mpra_df[pwm_name] = np.array(out_list,dtype='uint8')
 
         if idx % 100 == 0:
-            mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_footprint_mat.h5','df',mode='w')
+            mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_footprint_window.h5','df',mode='w')
 
-    mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_footprint_mat.h5','df',mode='w')
+    mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_footprint_window.h5','df',mode='w')
 
+def make_tewhey_test_data_single_snp():
+    mpra_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_300_pos.bed'
+    pwm_files = glob.glob('/nfs/rprdata/Anthony/data/combo/combo/*.gz')
+    pwm_files = sorted(pwm_files)
+    mpra_df = pd.read_csv(mpra_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
 
-def load_motif_dict():
-    with open('/wsu/home/al/al37/al3786/CENNTIPEDE/motif_dict.pkl',"rb") as pkl_file:
-        return(pickle.load(pkl_file))
+    for idx,pwm_file in enumerate(pwm_files):
+        pwm_name = os.path.basename(pwm_file).split(".")[0]
+        cmd_str = "bedtools slop -g /wsu/home/groups/piquelab/footprint.fungei/byTreatAllRepsMerged/centipede/x8bFiles/new.chromSizes.txt -l 0 -r 1 -i {1} | bedtools intersect -a {0} -b stdin -c | cut -f4".format(mpra_bed_file,pwm_file)
+        raw_out = subprocess.check_output(cmd_str,shell=True)
+        out_list = raw_out.split('\n')[:-1]
+        mpra_df[pwm_name] = np.array(out_list,dtype='uint8')
+
+        if idx % 100 == 0:
+            mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_footprint_single_snp.h5','df',mode='w')
+
+    mpra_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/mpra/mpra_footprint_single_snp.h5','df',mode='w')
 
 def make_matrix():
 
@@ -199,9 +272,6 @@ def make_matrix():
             df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/data_mat.h5','df',mode='w')
 
     df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/data_mat.h5','df',mode='w')
-
-
-
 
 def make_effect_snp_vector():
 
@@ -322,7 +392,6 @@ def make_effect_snp_mask_matrix_3():
     df_pos.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_pos_1.h5','df',mode='w')
     df_neg.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_training_effectSNP_neg_1.h5','df',mode='w')
 
-
 def get_pos_neg_dnase_locations(fasta_files_list,pos_neg='pos'):
     """
     Use the python module 'pydnase' to get DNase counts
@@ -356,7 +425,6 @@ def get_pos_neg_dnase_locations(fasta_files_list,pos_neg='pos'):
     df[1] = dnase_bed_arr_all[:,1]
     df[2] = dnase_bed_arr_all[:,2]
     df.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/dnase_{0}_peak.bed'.format(pos_neg), index=False, header=None, sep="\t")
-
 
 def make_training_labels():
     pos = '/wsu/home/al/al37/al3786/CENNTIPEDE/dnase_pos_peak.bed'
@@ -442,8 +510,6 @@ def intersect_beers_test_data():
 
     df_mat.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/model_mat2.h5','df',mode='w')
 
-
-
 def make_beers_test_matrix():
     ##Make flanking windows around positive dsqtl SNPs
     df_beers_pos = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos.bed',header=None,names=['chr','start','stop'],delim_whitespace=True)
@@ -526,7 +592,6 @@ def make_beers_test_matrix_single_snp():
             df_beers_neg.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_snps_only.h5','df',mode='w')
 
     df_beers_neg.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_snps_only.h5','df',mode='w')
-
 
 def make_beers_effect_snp_test_matrix():
 
@@ -704,7 +769,6 @@ def load_beers_dsqtl_effect_snp_test_data_1():
 
     return(X_dsqtl,Y_dsqtl)
 
-
 def load_beers_dsqtl_effect_snp_test_data_single_snp():
     df_pos = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_pos_effect_snps_only.h5','df')
     df_neg = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/beers_test_neg_effect_snps_only.h5','df')
@@ -718,6 +782,7 @@ def load_beers_dsqtl_effect_snp_test_data_single_snp():
     Y_dsqtl=np.hstack([np.ones(X_test_pos.shape[0]),np.zeros(X_test_neg.shape[0])])
 
     return(X_dsqtl,Y_dsqtl)
+
 def make_CENNTIPEDE_training_data():
     # from CNN_Models import cnn_helpers2 as CH
     pos_data = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/dnase_pos_df.txt',delim_whitespace=True)
@@ -762,271 +827,9 @@ def make_CENNTIPEDE_effect_snp_training_data_1():
     Y=np.hstack([np.ones(X_pos.shape[0]),np.zeros(X_neg.shape[0])])
     X[X>1] = 1
     return(make_train_test_data(X,Y))
-
-
-
-
-
-def get_prc_roc_validation(model, data):
-    x = data['test_data_X']
-    y = data['test_data_Y']
-    y_pred = model.predict(x, verbose=0)
-    mets = CH.get_metrics(y, y_pred)
-    prec,rec,_ = precision_recall_curve(y, y_pred)
-    auPRC = average_precision_score(y,y_pred)
-    fpr,tpr,_ = roc_curve(y,y_pred)
-    auROC = auc(fpr,tpr)
-    prec_at_10_rec = prec[np.abs(rec-0.1).argmin()]
-    auprc = '{:0.4f}'.format(auPRC)
-    auroc = '{:0.4f}'.format(auROC)
-    prec_10 = '{:0.4f}'.format(prec_at_10_rec)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred,'prec_10':prec_10})
-
-def plot_auprc_CENNTIPEDE_validation(*met_dicts):
-    plt.figure(figsize=(8,8))
-    for idx,met_dict in enumerate(met_dicts):
-        plt.plot(met_dict['rec'],met_dict['prec'],label="Model {1} $|$ {0} $|$ {2}".format(met_dict['auprc'],idx,met_dict['prec_10']))
-    plt.grid()
-    plt.axvline(0.1,color='grey',ls="--")
-    plt.ylabel('Precision',fontsize = 20)
-    plt.xlabel('Recall',fontsize = 20)
-    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
-    plt.setp(leg.get_title(),fontsize=20)
-    plt.title("CENNTIPEDE",fontsize=22)
-
-def plot_auprc_circuitSNPs_validation(*met_dicts):
-    plt.figure(figsize=(10,10))
-    for idx,met_dict in enumerate(met_dicts):
-        plt.plot(met_dict['rec'],met_dict['prec'],label="Model {1} $|$ {0} $|$ {2}".format(met_dict['auprc'],idx,met_dict['prec_10']),lw=3)
-    plt.grid()
-    plt.axvline(0.1,color='grey',ls="--")
-    plt.ylabel('Precision',fontsize = 20)
-    plt.xlabel('Recall',fontsize = 20)
-    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
-    plt.setp(leg.get_title(),fontsize=20)
-    plt.title("circuitSNPs Model Validation",fontsize=22)
-    plt.tight_layout()
-    save_fig=True
-    if save_fig:
-        plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/4_models_val.pdf")
-
-def plot_auprc_circuitSNPs_predictions(y_true,y_preds,model_names):
-    plt.figure(figsize=(10,10))
-    for idx,y_pred in enumerate(y_preds):
-        prec,rec,_ = precision_recall_curve(y_true, y_pred)
-        auprc = average_precision_score(y_true, y_pred)
-        prec_at_10_rec = prec[np.abs(rec-0.1).argmin()]
-        auprc = '{:0.4f}'.format(auprc)
-        prec_at_10_rec = '{:0.4f}'.format(prec_at_10_rec)
-        plt.plot(rec,prec,label="{0} $|$ {1} $|$ {2}".format(model_names[idx],auprc,prec_at_10_rec),lw=3)
-    plt.grid()
-    plt.axvline(0.1,color='grey',ls="--")
-    plt.ylabel('Precision',fontsize = 20)
-    plt.xlabel('Recall',fontsize = 20)
-    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
-    plt.setp(leg.get_title(),fontsize=20)
-    plt.title("circuitSNPs Prediction",fontsize=22)
-
-def permute_ES_preds(X_dsqtl,X_dsqtl_pred,X_mask,model):
-    preds = np.zeros(X_dsqtl.shape[0])
-    for idx_d,i in enumerate(X_dsqtl):
-        max_diff = 0
-        pred1 = X_dsqtl_pred[idx_d]
-        i_copy = i.copy()
-        for idx in np.where(X_mask[idx_d]==1)[0]:
-            i_copy1 = i_copy.copy()
-            i_copy1[idx] = 0
-            pred = model.predict(np.expand_dims(i_copy1,axis=0))
-            diff = np.absolute(log_diffs(pred1,pred))
-            if diff > max_diff:
-                preds[idx_d] = diff
-                max_diff = diff
-    return(preds)
-
-def get_prc_roc_validation_joint_model(model, data1,data2,data3):
-    # from CNN_Models import cnn_helpers2 as CH
-    x = [data1['test_data_X'],data2['test_data_X'],data3['test_data_X']]
-    y = data1['test_data_Y']
-    y_pred = model.predict(x, verbose=0)
-    mets = CH.get_metrics(y, y_pred)
-    prec,rec,_ = precision_recall_curve(y, y_pred)
-    auPRC = average_precision_score(y,y_pred)
-    fpr,tpr,_ = roc_curve(y,y_pred)
-    auROC = auc(fpr,tpr)
-    auprc = '{:0.4f}'.format(auPRC)
-    auroc = '{:0.4f}'.format(auROC)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred})
-
-def get_prc_roc_validation_pwm_model(model, data1,data2,data3,good_pwms_idx):
-    # from CNN_Models import cnn_helpers2 as CH
-    x = [data1['test_data_X'][:,good_pwms_idx],data2['test_data_X'][:,good_pwms_idx],data3['test_data_X']]
-    y = data1['test_data_Y']
-    y_pred = model.predict(x, verbose=0)
-    mets = CH.get_metrics(y, y_pred)
-    prec,rec,_ = precision_recall_curve(y, y_pred)
-    auPRC = average_precision_score(y,y_pred)
-    fpr,tpr,_ = roc_curve(y,y_pred)
-    auROC = auc(fpr,tpr)
-    auprc = '{:0.4f}'.format(auPRC)
-    auroc = '{:0.4f}'.format(auROC)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred})
-
-def get_prc_roc_test(model, x,y):
-    y_pred = model.predict(x, verbose=0)
-    mets = CH.get_metrics(y, y_pred)
-    prec,rec,_ = precision_recall_curve(y, y_pred)
-    auPRC = average_precision_score(y,y_pred)
-    fpr,tpr,_ = roc_curve(y,y_pred)
-    auROC = auc(fpr,tpr)
-    auprc = '{:0.4f}'.format(auPRC)
-    auroc = '{:0.4f}'.format(auROC)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred})
-
-def get_prc_roc_test_effect_SNP_model(model, x1,x2,y):
-    y_pred = model.predict([x1,x2], verbose=0)
-    mets = CH.get_metrics(y, y_pred)
-    prec,rec,_ = precision_recall_curve(y, y_pred)
-    auPRC = average_precision_score(y,y_pred)
-    fpr,tpr,_ = roc_curve(y,y_pred)
-    auROC = auc(fpr,tpr)
-    auprc = '{:0.4f}'.format(auPRC)
-    auroc = '{:0.4f}'.format(auROC)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred})
-
-def get_prc_roc_test_joint_model(model, x1,x2,x3,y):
-    y_pred = model.predict([x1,x2,x3], verbose=0)
-    mets = CH.get_metrics(y, y_pred)
-    prec,rec,_ = precision_recall_curve(y, y_pred)
-    auPRC = average_precision_score(y,y_pred)
-    fpr,tpr,_ = roc_curve(y,y_pred)
-    auROC = auc(fpr,tpr)
-    auprc = '{:0.4f}'.format(auPRC)
-    auroc = '{:0.4f}'.format(auROC)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred})
-
-def get_prc_roc_test_pwm_model(model, x1,x2,x3,y,good_pwms_idx):
-    y_pred = model.predict([x1[:,good_pwms_idx],x2[:,good_pwms_idx],x3], verbose=0)
-    mets = CH.get_metrics(y, y_pred)
-    prec,rec,_ = precision_recall_curve(y, y_pred)
-    auPRC = average_precision_score(y,y_pred)
-    fpr,tpr,_ = roc_curve(y,y_pred)
-    auROC = auc(fpr,tpr)
-    auprc = '{:0.4f}'.format(auPRC)
-    auroc = '{:0.4f}'.format(auROC)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred})
-
-def get_prc_roc_prediction(predictions, labels):
-    # y_pred = model.predict(x, verbose=0)
-    y_pred=predictions
-    y = labels
-    mets = CH.get_metrics(y, y_pred)
-    prec,rec,_ = precision_recall_curve(y, y_pred)
-    auPRC = average_precision_score(y,y_pred)
-    fpr,tpr,_ = roc_curve(y,y_pred)
-    auROC = auc(fpr,tpr)
-    auprc = '{:0.4f}'.format(auPRC)
-    auroc = '{:0.4f}'.format(auROC)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc})
-
-def log_diffs(prob1,prob2):
-    ref_pred = prob1
-    alt_pred = prob2
-    ref_pred[ref_pred == 1.] = 0.999999
-    ref_pred[ref_pred == 0.] = 0.000001
-    alt_pred[alt_pred == 1.] = 0.999999
-    alt_pred[alt_pred == 0.] = 0.000001
-    log_odds = (np.log(ref_pred)-np.log(1-ref_pred)) - (np.log(alt_pred) -np.log(1-alt_pred))
-    return(log_odds)
-
-def permute_mask(X_dsqtl,X_dsqtl_pred,X_mask,model):
-    preds = np.zeros(X_dsqtl.shape[0])
-    for idx_d,i in enumerate(X_dsqtl):
-        max_diff = 0
-        pred1 = X_dsqtl_pred[idx_d]
-        i_copy = i.copy()
-        for idx in np.where(X_mask[idx_d]==1)[0]:
-            i_copy1 = i_copy.copy()
-            i_copy1[idx] = 0
-            pred = model.predict(np.expand_dims(i_copy1,axis=0))
-            diff = np.absolute(log_diffs(pred1,pred))
-            if diff > max_diff:
-                preds[idx_d] = diff
-                max_diff = diff
-    return(preds)
-
-
-def fit_CENNTIPEDE_Effect_SNP_model(model, data1, data2):
-    model_earlystopper = EarlyStopping(monitor='val_loss',patience=3,verbose=0)
-    model.fit([data1['train_data_X'],data2['train_data_X']], data1['train_data_Y'],
-        epochs=30,
-        shuffle=True,
-        validation_data = ([data1['val_data_X'],data2['val_data_X']],data1['val_data_Y']),
-        callbacks=[model_earlystopper],
-        verbose=2)
-    return(model)
-
-def fit_CENNTIPEDE_CNNtipede_model(model, data1, data2, data3):
-    model_earlystopper = EarlyStopping(monitor='val_loss',patience=3,verbose=0)
-    model.fit([data1['train_data_X'],data2['train_data_X'],data3['train_data_X']], data1['train_data_Y'],
-        epochs=30,
-        shuffle=True,
-        validation_data = ([data1['val_data_X'],data2['val_data_X'],data3['val_data_X']],data1['val_data_Y']),
-        callbacks=[model_earlystopper],
-        verbose=2)
-    return(model)
-
-def fit_CENNTIPEDE_CNNtipede_pwm_model(model, data1, data2, data3,good_pwms_idx):
-    model_earlystopper = EarlyStopping(monitor='val_loss',patience=3,verbose=0)
-    model.fit([data1['train_data_X'][:,good_pwms_idx],data2['train_data_X'][:,good_pwms_idx],data3['train_data_X']], data1['train_data_Y'],
-        epochs=30,
-        shuffle=True,
-        validation_data = ([data1['val_data_X'][:,good_pwms_idx],data2['val_data_X'][:,good_pwms_idx],data3['val_data_X']],data1['val_data_Y']),
-        callbacks=[model_earlystopper],
-        verbose=2)
-    return(model)
-
-
 def make_train_test_data(X,Y):
-    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.25, stratify=Y,random_state=17234)
-    X_val, X_test, Y_val, Y_test = train_test_split(X_test, Y_test, test_size=0.5, stratify=Y_test,random_state=172340)
+    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.15, stratify=Y,random_state=172345)
+    X_val, X_test, Y_val, Y_test = train_test_split(X_test, Y_test, test_size=0.5, stratify=Y_test,random_state=1723450)
     data = CH.make_seq_data_dict([X_train, X_val, X_test, Y_train, Y_val,Y_test])
     return(data)
 
-def make_pwm_conv_filters(kernel_size,width=4,rev_comp=True):
-    pwms = glob.glob("/wsu/home/al/al37/al3786/EncodeDreamAnalysis/NewJaspar/PwmFiles/*.pfm")
-    # pwms = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/recalibratedMotifs/*.pwm')
-    num_filt = len(pwms)
-    bad_pwm = 0
-    pwm_arr = np.zeros((kernel_size,width,num_filt))
-    idx = 0
-    good_pwms_idx=[]
-    for idx_pwm, i in enumerate(pwms):
-        pwm = pd.read_csv(i,delim_whitespace=True,header=None,dtype=np.float64)
-        # pwm = pd.read_csv(i,delim_whitespace=True,comment='#',dtype=np.float64)
-        w = pwm.shape[1]
-        # w = pwm.shape[0]
-        if w >= kernel_size:
-            bad_pwm +=1
-            continue
-        pwm=np.fliplr(pwm)
-        pwm = pwm.T / np.sum(pwm.T,axis=1)[:,None]
-        pwm[pwm<0.001] = 0.001
-        pwm = np.log2(pwm)+2
-
-        start = np.round((kernel_size/2)-(w/ 2))
-        if width==4:
-            pwm_arr[start:start+w,:,idx] = pwm
-        if width==8:
-            pwm_arr[start:start+w,:4,idx] = pwm
-            pwm_arr[start:start+w,4:,idx] = pwm
-        idx += 1
-        good_pwms_idx.append(idx_pwm)
-    pwm_arr = pwm_arr[:,:,:num_filt-bad_pwm]
-    if rev_comp:
-        conv_weights = np.concatenate([pwm_arr,pwm_arr[::-1,:,::-1]],axis=2)
-    else:
-        conv_weights = pwm_arr
-
-    num_filts = conv_weights.shape[-1]
-
-    return(conv_weights, num_filts, good_pwms_idx)
