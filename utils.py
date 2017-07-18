@@ -18,12 +18,289 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid import make_axes_locatable
 
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import precision_recall_curve
+from sklearn.metrics import average_precision_score
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_curve, auc
+from sklearn.preprocessing import maxabs_scale
+from sklearn.preprocessing import minmax_scale
+
 from CNN_Models import cnn_helpers2 as CH
 from collections import OrderedDict
+from scipy.stats import linregress
+
+def plot_circuitSNPs_vs_gkm_svm(df,tissue,direction=True,all_4=False,save=False):
+    if direction:
+        if all_4:
+            plt.figure(figsize=(8,8))
+            plt.ylabel("gkm\_scores",fontsize=16)
+            plt.xlabel("circuitSNP-D prediction",fontsize=16)
+            reg = linregress(df['circuitSNPs-D'],df['gkm_score'])
+            x = np.arange(df['circuitSNPs-D'].min(),
+                            df['circuitSNPs-D'].max()+1,
+                            1)
+            abline_values = [reg[0] * i + reg[1] for i in x]
+            p_val = '{:0.3e}'.format(reg[3])
+            r_val = '{:0.3f}'.format(reg[2])
+            plt.scatter(df['circuitSNPs-D'],
+                        df.gkm_score)
+            plt.plot(x,abline_values,'r')
+            plt.grid()
+            plt.title("r = {0}    p\_val = {1}".format(r_val,p_val))
+            if save:
+                plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs_D.{0}.png".format(tissue),dpi=300,transparent=True)
+        else:
+
+            f, ax_arr = plt.subplots(2,2,figsize=(8,8))
+            ax_arr = ax_arr.reshape(-1)
+            gkm_order=["gkm\_scores","$|$gkm scores$|$","gkm scores","$|$gkm scores$|$"]
+            circuitSNP_order=["circuitSNP-D prediction","circuitSNP-D prediction","$|$circuitSNP-D prediction$|$","$|$circuitSNP-D prediction$|$"]
+            for idx in [0,1,2,3]:
+                ax_arr[idx].set_ylabel(gkm_order[idx],fontsize=16)
+                ax_arr[idx].set_xlabel(circuitSNP_order[idx],fontsize=16)
+                # ax_arr[idx].set_ylim()
+                # ax_arr[idx].axhline(true_vals[idx], color='green')
+                if idx==0:
+                    reg = linregress(df['circuitSNPs-D'],df['gkm_score'])
+                    x = np.arange(df['circuitSNPs-D'].min(),
+                                    df['circuitSNPs-D'].max()+1,
+                                    1)
+                    abline_values = [reg[0] * i + reg[1] for i in x]
+                    p_val = '{:0.3e}'.format(reg[3])
+                    # p_val = reg[3]
+                    r_val = '{:0.3f}'.format(reg[2])
+                    ax_arr[idx].scatter(df['circuitSNPs-D'],
+                                df.gkm_score)
+                    ax_arr[idx].plot(x,abline_values,'r')
+                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
+                elif idx==1:
+                    reg = linregress(df['circuitSNPs-D'],df['gkm_score'].abs())
+                    x = np.arange(df['circuitSNPs-D'].min(),
+                                    df['circuitSNPs-D'].max()+1,
+                                    1)
+                    abline_values = [reg[0] * i + reg[1] for i in x]
+                    p_val = '{:0.3e}'.format(reg[3])
+                    r_val = '{:0.3f}'.format(reg[2])
+                    ax_arr[idx].scatter(df['circuitSNPs-D'],
+                                df.gkm_score.abs())
+                    ax_arr[idx].plot(x,abline_values,'r')
+                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
+                elif idx==2:
+                    reg = linregress(df['circuitSNPs-D'].abs(),df['gkm_score'])
+                    x = np.arange(df['circuitSNPs-D'].abs().min(),
+                                    df['circuitSNPs-D'].abs().max()+1,
+                                    1)
+                    abline_values = [reg[0] * i + reg[1] for i in x]
+                    p_val = '{:0.3e}'.format(reg[3])
+                    r_val = '{:0.3f}'.format(reg[2])
+                    ax_arr[idx].scatter(df['circuitSNPs-D'].abs(),
+                                df.gkm_score)
+                    ax_arr[idx].plot(x,abline_values,'r')
+                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
+                else:
+                    reg = linregress(df['circuitSNPs-D'].abs(),df['gkm_score'].abs())
+                    x = np.arange(df['circuitSNPs-D'].abs().min(),
+                                    df['circuitSNPs-D'].abs().max()+1,
+                                    1)
+                    abline_values = [reg[0] * i + reg[1] for i in x]
+                    p_val = '{:0.3e}'.format(reg[3])
+                    r_val = '{:0.3f}'.format(reg[2])
+                    ax_arr[idx].scatter(df['circuitSNPs-D'].abs(),
+                                df.gkm_score.abs())
+                    ax_arr[idx].plot(x,abline_values,'r')
+                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
+                ax_arr[idx].grid()
+
+                f.suptitle("circuitSNP-D \& gkmSVM scores in {0}".format(tissue),fontsize=20)
+                f.tight_layout()
+                f.subplots_adjust(top=0.9)
+                if save:
+                    plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs_D.{0}.png".format(tissue),dpi=300,transparent=True)
+    else:
+        if all_4:
+            plt.figure(figsize=(8,8))
+            plt.ylabel("gkm\_scores",fontsize=16)
+            plt.xlabel("circuitSNPs prediction",fontsize=16)
+            reg = linregress(df['circuitSNPs'],df['gkm_score'])
+            x = np.arange(df['circuitSNPs'].min(),
+                            df['circuitSNPs'].max()+1,
+                            1)
+            abline_values = [reg[0] * i + reg[1] for i in x]
+            p_val = '{:0.3e}'.format(reg[3])
+            r_val = '{:0.3f}'.format(reg[2])
+            plt.scatter(df['circuitSNPs'],
+                        df.gkm_score)
+            plt.plot(x,abline_values,'r')
+            plt.title("r = {0}    p\_val = {1}".format(r_val,p_val))
+            if save:
+                plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs.{0}.png".format(tissue),dpi=300,transparent=True)
+        else:
+            f, ax_arr = plt.subplots(2,2,figsize=(8,8))
+            ax_arr = ax_arr.reshape(-1)
+            gkm_order=["gkm\_scores","$|$gkm scores$|$","gkm scores","$|$gkm scores$|$"]
+            circuitSNP_order=["circuitSNPs prediction","circuitSNPs prediction","$|$circuitSNPs prediction$|$","$|$circuitSNPs prediction$|$"]
+            for idx in [0,1,2,3]:
+                ax_arr[idx].set_ylabel(gkm_order[idx],fontsize=16)
+                ax_arr[idx].set_xlabel(circuitSNP_order[idx],fontsize=16)
+                # ax_arr[idx].set_ylim()
+                # ax_arr[idx].axhline(true_vals[idx], color='green')
+                if idx==0:
+                    reg = linregress(df['circuitSNPs'],df['gkm_score'])
+                    x = np.arange(df['circuitSNPs'].min(),
+                                    df['circuitSNPs'].max()+1,
+                                    1)
+                    abline_values = [reg[0] * i + reg[1] for i in x]
+                    p_val = '{:0.3e}'.format(reg[3])
+                    # p_val = reg[3]
+                    r_val = '{:0.3f}'.format(reg[2])
+                    ax_arr[idx].scatter(df.circuitSNPs,
+                                df.gkm_score)
+                    ax_arr[idx].plot(x,abline_values,'r')
+                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
+                elif idx==1:
+                    reg = linregress(df['circuitSNPs'],df['gkm_score'].abs())
+                    x = np.arange(df['circuitSNPs'].min(),
+                                    df['circuitSNPs'].max()+1,
+                                    1)
+                    abline_values = [reg[0] * i + reg[1] for i in x]
+                    p_val = '{:0.3e}'.format(reg[3])
+                    r_val = '{:0.3f}'.format(reg[2])
+                    ax_arr[idx].scatter(df.circuitSNPs,
+                                df.gkm_score.abs())
+                    ax_arr[idx].plot(x,abline_values,'r')
+                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
+                elif idx==2:
+                    reg = linregress(df['circuitSNPs'].abs(),df['gkm_score'])
+                    x = np.arange(df['circuitSNPs'].abs().min(),
+                                    df['circuitSNPs'].abs().max()+1,
+                                    1)
+                    abline_values = [reg[0] * i + reg[1] for i in x]
+                    p_val = '{:0.3e}'.format(reg[3])
+                    r_val = '{:0.3f}'.format(reg[2])
+                    ax_arr[idx].scatter(df.circuitSNPs.abs(),
+                                df.gkm_score)
+                    ax_arr[idx].plot(x,abline_values,'r')
+                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
+                else:
+                    reg = linregress(df['circuitSNPs'].abs(),df['gkm_score'].abs())
+                    x = np.arange(df['circuitSNPs'].abs().min(),
+                                    df['circuitSNPs'].abs().max()+1,
+                                    1)
+                    abline_values = [reg[0] * i + reg[1] for i in x]
+                    p_val = '{:0.3e}'.format(reg[3])
+                    r_val = '{:0.3f}'.format(reg[2])
+                    ax_arr[idx].scatter(df.circuitSNPs.abs(),
+                                df.gkm_score.abs())
+                    ax_arr[idx].plot(x,abline_values,'r')
+                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
+                ax_arr[idx].grid()
+            f.suptitle("circuitSNP \& gkmSVM scores in {0}".format(tissue),fontsize=20)
+            f.tight_layout()
+            f.subplots_adjust(top=0.9)
+            if save:
+                plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs.{0}.png".format(tissue),dpi=300,transparent=True)
 
 
 
-def get_compendium_snp_predictions(foot,es):
+##TODO
+"""
+def get_compendium_snp_predictions_flip_sign(foot,es,model):
+    m,n = foot.shape
+    y_pred = np.empty(m)
+
+    for idx in np.arange(m):
+        foot_vect_t = foot[idx].copy()
+        ES_ref = np.where(es[idx]==1)[0]
+        ES_alt = np.where(es[idx]==2)[0]
+
+        tmp_ref = foot_vect_t[None,:].copy()
+        tmp_ref[0][ES_alt] = 0
+        es_pred_ref = np.squeeze(model.predict(tmp_ref))
+
+        # prediction_t = np.squeeze(model.predict(foot_vect_t[None,:]))
+
+        tmp_alt = foot_vect_t[None,:].copy()
+        tmp_alt[0][ES_ref] = 0
+        tmp_alt[0][ES_alt] = 1
+        es_pred_alt = np.squeeze(model.predict(tmp_alt))
+        lo = log_diffs(es_pred_ref,es_pred_alt)
+
+        y_pred[idx]=lo
+        if idx % 100000 == 0:
+            print("Predicted {0} SNPs".format(idx))
+
+    np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_predictions_ref_alt',y_pred)
+    df_snps = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed',header=None, names=['chr','start','stop'],delim_whitespace=True)
+    df_snps['circuitSNPs'] = np.nan
+    df_snps['circuitSNPs'] = y_pred
+    df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_and_predictions_ref_alt.tab',sep='\t',index=False)
+"""
+
+def get_compendium_snp_predictions_ref_alt_window_footprints(foot,es,model):
+    m,n = foot.shape
+    y_pred = np.empty(m)
+
+    for idx in np.arange(m):
+        foot_vect_t = foot[idx].copy()
+        ES_ref = np.where(es[idx]==1)[0]
+        ES_alt = np.where(es[idx]==2)[0]
+
+        tmp_ref = foot_vect_t[None,:].copy()
+        tmp_ref[0][ES_alt] = 0
+        es_pred_ref = np.squeeze(model.predict(tmp_ref))
+
+        # prediction_t = np.squeeze(model.predict(foot_vect_t[None,:]))
+
+        tmp_alt = foot_vect_t[None,:].copy()
+        tmp_alt[0][ES_ref] = 0
+        tmp_alt[0][ES_alt] = 1
+        es_pred_alt = np.squeeze(model.predict(tmp_alt))
+        lo = log_diffs(es_pred_ref,es_pred_alt)
+
+        y_pred[idx]=lo
+        if idx % 100000 == 0:
+            print("Predicted {0} SNPs".format(idx))
+
+    np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_predictions_ref_alt_windowed',y_pred)
+    df_snps = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed',header=None, names=['chr','start','stop'],delim_whitespace=True)
+    df_snps['circuitSNPs'] = np.nan
+    df_snps['circuitSNPs'] = y_pred
+    df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_and_predictions_ref_alt_windowed.tab',sep='\t',index=False)
+
+
+def get_compendium_snp_predictions_ref_alt(foot,es,model):
+    m,n = foot.shape
+    y_pred = np.empty(m)
+
+    for idx in np.arange(m):
+        foot_vect_t = foot[idx].copy()
+        ES_ref = np.where(es[idx]==1)[0]
+        ES_alt = np.where(es[idx]==2)[0]
+
+        tmp_ref = foot_vect_t[None,:].copy()
+        tmp_ref[0][ES_alt] = 0
+        es_pred_ref = np.squeeze(model.predict(tmp_ref))
+
+        # prediction_t = np.squeeze(model.predict(foot_vect_t[None,:]))
+
+        tmp_alt = foot_vect_t[None,:].copy()
+        tmp_alt[0][ES_ref] = 0
+        tmp_alt[0][ES_alt] = 1
+        es_pred_alt = np.squeeze(model.predict(tmp_alt))
+        lo = log_diffs(es_pred_ref,es_pred_alt)
+
+        y_pred[idx]=lo
+        if idx % 100000 == 0:
+            print("Predicted {0} SNPs".format(idx))
+
+    np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_predictions_ref_alt',y_pred)
+    df_snps = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed',header=None, names=['chr','start','stop'],delim_whitespace=True)
+    df_snps['circuitSNPs'] = np.nan
+    df_snps['circuitSNPs'] = y_pred
+    df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_and_predictions_ref_alt.tab',sep='\t',index=False)
+
+def get_compendium_snp_predictions(foot,es,model):
     m,n = foot.shape
     y_pred = np.empty(m)
 
@@ -35,7 +312,7 @@ def get_compendium_snp_predictions(foot,es):
         tmp = foot_vect_t[None,:].copy()
         tmp[0][ES_t] = 0
         es_pred_t = np.squeeze(model.predict(tmp))
-        lo = DP.log_diffs(prediction_t,es_pred_t)
+        lo = log_diffs(prediction_t,es_pred_t)
 
         y_pred[idx]=lo
 
@@ -215,9 +492,26 @@ def get_prc_roc_prediction(predictions, labels):
     auPRC = average_precision_score(y,y_pred)
     fpr,tpr,_ = roc_curve(y,y_pred)
     auROC = auc(fpr,tpr)
+    prec_at_10_rec = prec[np.abs(rec-0.1).argmin()]
     auprc = '{:0.4f}'.format(auPRC)
     auroc = '{:0.4f}'.format(auROC)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc})
+    prec_10 = '{:0.4f}'.format(prec_at_10_rec)
+    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred,'prec_10':prec_10})
+
+def circuitSNP_metrics(predictions, labels,model_name):
+    # y_pred = model.predict(x, verbose=0)
+    y_pred=predictions
+    y = labels
+    mets = CH.get_metrics(y, y_pred)
+    prec,rec,_ = precision_recall_curve(y, y_pred)
+    auPRC = average_precision_score(y,y_pred)
+    fpr,tpr,_ = roc_curve(y,y_pred)
+    auROC = auc(fpr,tpr)
+    prec_at_10_rec = prec[np.abs(rec-0.1).argmin()]
+    auprc = '{:0.4f}'.format(auPRC)
+    auroc = '{:0.4f}'.format(auROC)
+    prec_10 = '{:0.4f}'.format(prec_at_10_rec)
+    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred,'prec_10':prec_10,'model_name':model_name})
 
 def log_diffs(prob1,prob2):
     ref_pred = prob1
@@ -271,6 +565,31 @@ def plot_auprc_circuitSNPs_validation(*met_dicts):
     save_fig=True
     if save_fig:
         plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/model_validation_prc.pdf")
+
+def plot_auprc_circuitSNPs_predictions_2(*met_dicts):
+    plt.figure(figsize=(8,8))
+    for idx,met_dict in enumerate(met_dicts):
+        plt.plot(met_dict['rec'],met_dict['prec'],label="{1} $|$ {0} $|$ {2}".format(met_dict['auprc'],met_dict['model_name'],met_dict['prec_10']))
+    plt.grid()
+    plt.axvline(0.1,color='grey',ls="--")
+    plt.ylabel('Precision',fontsize = 20)
+    plt.xlabel('Recall',fontsize = 20)
+    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
+    plt.setp(leg.get_title(),fontsize=20)
+    plt.title("circuitSNPs",fontsize=22)
+
+def plot_auprc_circuitSNPs_predictions_3(*met_dicts):
+    plt.figure(figsize=(8,8))
+    for idx,met_dict in enumerate(met_dicts):
+        plt.plot(met_dict['rec'],met_dict['prec'],label="{1} $|$ {0} $|$ {2}".format(met_dict['auprc'],met_dict['model_name'],met_dict['prec_10']))
+    plt.grid()
+    plt.axvline(0.1,color='grey',ls="--")
+    plt.ylabel('Precision',fontsize = 20)
+    plt.xlabel('Recall',fontsize = 20)
+    plt.xlim(0,0.2)
+    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
+    plt.setp(leg.get_title(),fontsize=20)
+    plt.title("circuitSNPs",fontsize=22)
 
 def load_motif_dict():
     with open('/wsu/home/al/al37/al3786/CENNTIPEDE/motif_dict.pkl',"rb") as pkl_file:

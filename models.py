@@ -63,11 +63,11 @@ from . import data_prep as DP
 
 from CNN_Models import cnn_helpers2 as CH
 
-def make_CENNTIPEDE_model(data):
+def make_CENNTIPEDE_model(data,units1=500,units2=500):
     ada = Adadelta()
     input0 = Input(shape=(data['train_data_X'].shape[1],))
-    lay1 = Dense(50,activation='relu',name='HL1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(input0)
-    lay2 = Dense(10,activation='relu',name='HL2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(lay1)
+    lay1 = Dense(units1,activation='relu',name='HL1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(input0)
+    lay2 = Dense(units2,activation='relu',name='HL2',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(lay1)
     # do1 = Dropout(0.25)(lay2)
     # lay3 = Dense(500,activation='relu',name='HL3',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(lay2)
     # do2 = Dropout(0.25)(lay2)
