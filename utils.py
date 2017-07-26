@@ -26,13 +26,14 @@ from sklearn.metrics import roc_curve, auc
 from sklearn.preprocessing import maxabs_scale
 from sklearn.preprocessing import minmax_scale
 
+from keras.models import load_model
 from CNN_Models import cnn_helpers2 as CH
 from collections import OrderedDict
 from scipy.stats import linregress
 
-def plot_circuitSNPs_vs_gkm_svm(df,tissue,direction=True,all_4=False,save=False):
+def plot_circuitSNPs_vs_gkm_svm(df,tissue,name,direction=True,all_4=False,save=False):
     if direction:
-        if all_4:
+        if not all_4:
             plt.figure(figsize=(8,8))
             plt.ylabel("gkm\_scores",fontsize=16)
             plt.xlabel("circuitSNP-D prediction",fontsize=16)
@@ -116,9 +117,9 @@ def plot_circuitSNPs_vs_gkm_svm(df,tissue,direction=True,all_4=False,save=False)
                 f.tight_layout()
                 f.subplots_adjust(top=0.9)
                 if save:
-                    plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs_D.{0}.png".format(tissue),dpi=300,transparent=True)
+                    plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs_D.{0}_{1}.png".format(tissue,name),dpi=300,transparent=True)
     else:
-        if all_4:
+        if not all_4:
             plt.figure(figsize=(8,8))
             plt.ylabel("gkm\_scores",fontsize=16)
             plt.xlabel("circuitSNPs prediction",fontsize=16)
@@ -199,13 +200,56 @@ def plot_circuitSNPs_vs_gkm_svm(df,tissue,direction=True,all_4=False,save=False)
             f.tight_layout()
             f.subplots_adjust(top=0.9)
             if save:
-                plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs.{0}.png".format(tissue),dpi=300,transparent=True)
+                plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs.{0}_{1}.png".format(tissue,name),dpi=300,transparent=True)
 
 
 
-##TODO
-"""
-def get_compendium_snp_predictions_flip_sign(foot,es,model):
+def prep_for_compendium_predictions(circuitSNPs_model,nn_model,name):
+    """
+    Usage:
+
+    circuitSNPs_model = 'circuitSNPs' || 'circuitSNPs-D' || 'circuitSNPs-Window'
+
+    nn_model = path to to trained circuitSNPs neural network model
+
+    name = Used to name the output file. Describe the neural network model hidden units  i.e. '50_50' or '100_100'
+    """
+    try:
+        model = load_model(nn_model)
+    except Exception as e:
+        raise e
+
+
+    if circuitSNPs_model == 'circuitSNPs':
+        es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5')
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints.h5')
+
+        es = es.iloc[:,3:].values
+        foot = foot.iloc[:,3:].values
+        get_compendium_snp_predictions(foot,es,model,name)
+
+    elif circuitSNPs_model == 'circuitSNPs-D':
+        es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5')
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints.h5')
+
+        es = es.iloc[:,3:].values
+        foot = foot.iloc[:,3:].values
+        get_compendium_snp_predictions_ref_alt(foot,es,model,name)
+
+    elif circuitSNPs_model == 'circuitSNPs-Window':
+        es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5')
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprint_window_150.h5')
+
+        es = es.iloc[:,3:].values
+        foot = foot.iloc[:,3:].values
+        get_compendium_snp_predictions_windows(foot,es,model,name)
+
+    else:
+        raise ValueError(circuitSNPs_model + " is not a valid model")
+
+
+
+def get_compendium_snp_predictions_windows(foot,es,model,name):
     m,n = foot.shape
     y_pred = np.empty(m)
 
@@ -230,14 +274,14 @@ def get_compendium_snp_predictions_flip_sign(foot,es,model):
         if idx % 100000 == 0:
             print("Predicted {0} SNPs".format(idx))
 
-    np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_predictions_ref_alt',y_pred)
+    np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_predictions_windows_{0}'.format(name),y_pred)
     df_snps = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed',header=None, names=['chr','start','stop'],delim_whitespace=True)
-    df_snps['circuitSNPs'] = np.nan
-    df_snps['circuitSNPs'] = y_pred
-    df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_and_predictions_ref_alt.tab',sep='\t',index=False)
-"""
+    # df_snps['circuitSNPs'] = np.nan
+    df_snps['circuitSNPs-W'] = y_pred
+    df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs-W_predictions_{0}.tab'.format(name),sep='\t',index=False)
 
-def get_compendium_snp_predictions_ref_alt_window_footprints(foot,es,model):
+
+def get_compendium_snp_predictions_ref_alt(foot,es,model,name):
     m,n = foot.shape
     y_pred = np.empty(m)
 
@@ -262,45 +306,13 @@ def get_compendium_snp_predictions_ref_alt_window_footprints(foot,es,model):
         if idx % 100000 == 0:
             print("Predicted {0} SNPs".format(idx))
 
-    np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_predictions_ref_alt_windowed',y_pred)
+    np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/circuitSNPD_compendium_predictions_{0}'.format(name),y_pred)
     df_snps = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed',header=None, names=['chr','start','stop'],delim_whitespace=True)
-    df_snps['circuitSNPs'] = np.nan
-    df_snps['circuitSNPs'] = y_pred
-    df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_and_predictions_ref_alt_windowed.tab',sep='\t',index=False)
+    es['circuitSNPs-D'] = y_pred
+    df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPsD_predictions_{0}.tab'.format(name),sep='\t',index=False)
 
 
-def get_compendium_snp_predictions_ref_alt(foot,es,model):
-    m,n = foot.shape
-    y_pred = np.empty(m)
-
-    for idx in np.arange(m):
-        foot_vect_t = foot[idx].copy()
-        ES_ref = np.where(es[idx]==1)[0]
-        ES_alt = np.where(es[idx]==2)[0]
-
-        tmp_ref = foot_vect_t[None,:].copy()
-        tmp_ref[0][ES_alt] = 0
-        es_pred_ref = np.squeeze(model.predict(tmp_ref))
-
-        # prediction_t = np.squeeze(model.predict(foot_vect_t[None,:]))
-
-        tmp_alt = foot_vect_t[None,:].copy()
-        tmp_alt[0][ES_ref] = 0
-        tmp_alt[0][ES_alt] = 1
-        es_pred_alt = np.squeeze(model.predict(tmp_alt))
-        lo = log_diffs(es_pred_ref,es_pred_alt)
-
-        y_pred[idx]=lo
-        if idx % 100000 == 0:
-            print("Predicted {0} SNPs".format(idx))
-
-    np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_predictions_ref_alt',y_pred)
-    df_snps = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed',header=None, names=['chr','start','stop'],delim_whitespace=True)
-    df_snps['circuitSNPs'] = np.nan
-    df_snps['circuitSNPs'] = y_pred
-    df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_and_predictions_ref_alt.tab',sep='\t',index=False)
-
-def get_compendium_snp_predictions(foot,es,model):
+def get_compendium_snp_predictions(foot,es,model,name):
     m,n = foot.shape
     y_pred = np.empty(m)
 
@@ -316,11 +328,11 @@ def get_compendium_snp_predictions(foot,es,model):
 
         y_pred[idx]=lo
 
-    np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_predictions',y_pred)
+    np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/circuitSNPs_compendium_predictions_{0}.npy'.format(name),y_pred)
     df_snps = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed',header=None, names=['chr','start','stop'],delim_whitespace=True)
-    df_snps['circuitSNPs'] = np.nan
+    # df_snps['circuitSNPs'] = np.nan
     df_snps['circuitSNPs'] = y_pred
-    df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_and_predictions.tab',sep='\t',index=False)
+    df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs_predictions_{0}.tab'.format(name),sep='\t',index=False)
 
 
 def permute_mask(X_dsqtl,X_dsqtl_pred,X_mask,model):

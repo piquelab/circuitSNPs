@@ -60,6 +60,15 @@ from CNN_Models import cnn_helpers2 as CH
 from collections import OrderedDict
 from scipy import sparse
 
+class Unbuffered(object):
+    def __init__(self, stream):
+        self.stream = stream
+    def write(self, data):
+        self.stream.write(data)
+        self.stream.flush()
+    def __getattr__(self, attr):
+        return getattr(self.stream, attr)
+
 def add_flanks(df, flank_size):
     if flank_size != 0:
         df['start'] = df['start'] - flank_size
@@ -73,14 +82,15 @@ def load_rasqual_snps():
 
 
 
-def load_compendium_predictions_ref_alt():
-    df=pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_and_predictions_ref_alt.tab',delim_whitespace=True)
+def load_compendium_predictions_circuitSNPs(name):
+    df=pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_predictions_{0}.tab'.format(name),sep='\t')
     return(df)
 
 
-def load_compendium_predictions():
-    df=pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_predictions.tab',delim_whitespace=True)
-    return(df)
+# def load_compendium_predictions_circuitSNPs(name):
+#     # df=pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_predictions.tab',delim_whitespace=True)
+#     df=pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs_predictions_uni_{0}.bed'.format(name),delim_whitespace=True)
+#     return(df)
 
 
 def load_compendium_footprints():
@@ -98,72 +108,116 @@ def load_compendium_ES():
     es = es.toarray()
     return(es)
 
-def make_all_compendium_ES_ref_alt():
-    """
-    For those ES where reference has > priorlog odds than alt, keep effect snps labeled as "1", if alt > ref, relabel those snps as "2".
-    """
+# def make_all_compendium_ES_ref_alt():
+#     """
+#     For those ES where reference has > priorlog odds than alt, keep effect snps labeled as "1", if alt > ref, relabel those snps as "2".
+#     """
+#     sys.stdout = Unbuffered(sys.stdout)
+#     compendium_es_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.h5'
+#     es_df = pd.read_hdf(compendium_es_file)
 
-    compendium_es_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.h5'
-    es_df = pd.read_hdf(compendium_es_file)
+#     footprint_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno3/*.bed.gz')
+#     footprint_snps = sorted(footprint_snps)
 
-    footprint_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno3/*.bed.gz')
+
+#     for idx,footprint_snp in enumerate(footprint_snps):
+#         footsnp_df = pd.read_csv(footprint_snp,delim_whitespace=True,header=None,names=['chr','start','stop','motif','binding_strength','strand','ref_lr','alt_lr','ref','alt','effect_snp'])
+#         motif_name = os.path.basename(footprint_snp).split(".")[0]
+
+#         es_idx = footsnp_df[footsnp_df['effect_snp']==2].index
+
+
+#         df_alt=footsnp_df.loc[es_idx][footsnp_df.loc[es_idx]['ref_lr']<footsnp_df.iloc[es_idx]['alt_lr']].reset_index(drop=True)[['chr','start','stop']]
+
+
+#         # es_df.loc[(es_df['chr'].isin(df_alt['chr']))&(es_df['start'].isin(df_alt['start'])),motif_name] = 2
+#         es_df.loc[(es_df['chr'].isin(df_alt['chr']))&(es_df['start'].isin(df_alt['start']))&(es_df[motif_name]==1),motif_name] = 2
+
+
+#         print(idx)
+#         # if idx % 100 == 0:
+#             # es_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprint_snps_ref_alt.h5','df',mode='w')
+
+#     es_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprint_snps_ref_alt.h5','df',mode='w')
+
+# def make_all_compendium_ES_ref_alt_2():
+
+#     For those ES where reference has > priorlog odds than alt, keep effect snps labeled as "1", if alt > ref, relabel those snps as "2".
+
+#     sys.stdout = Unbuffered(sys.stdout)
+#     compendium_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed'
+#     compendium_df = pd.read_csv(compendium_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
+
+#     effect_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno3/*.gz')
+#     effect_snps = sorted(effect_snps)
+
+#     compendium_df_c = compendium_df.copy()
+
+
+#     for idx,effect_snp in enumerate(effect_snps):
+#         footsnp_df = pd.read_csv(effect_snp,delim_whitespace=True,header=None,names=['chr','start','stop','motif','binding_strength','strand','ref_lr','alt_lr','ref','alt','effect_snp'])
+#         # motif_name = footsnp_df.motif[0]
+#         motif_name = os.path.basename(effect_snp).split(".")[0]
+
+#         binding_up = (footsnp_df['ref_lr']>=footsnp_df['alt_lr'])& (np.abs(footsnp_df['ref_lr']-footsnp_df['alt_lr'])>3)
+
+#         binding_down = (footsnp_df['ref_lr']<footsnp_df['alt_lr'])& (np.abs(footsnp_df['ref_lr']-footsnp_df['alt_lr'])>3)
+
+#         footsnp_df['direct_snps'] = 0
+
+#         footsnp_df['direct_snps'][binding_up] = 1
+#         footsnp_df['direct_snps'][binding_down] = 2
+
+#         compendium_df_c[motif_name] = compendium_df.merge(footsnp_df,how='left',on=['chr','start','stop'])['direct_snps']
+
+#         compendium_df_c[motif_name].fillna(0,inplace=True)
+#         compendium_df_c[motif_name] = compendium_df_c[motif_name].astype(np.uint8)
+#         print(idx)
+#     # compendium_df_c.iloc[:,3:] = compendium_df_c.iloc[:,3:].astype(np.int)
+
+#     compendium_df_c.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprint_snps_ref_alt_fast.h5','df',mode='w')
+
+def make_all_circuitSNPsD():
+    all_snps_bed_file = '/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/results/all.centiSnps.unique.bed.gz'
+    centiSNPs_df = pd.read_csv(all_snps_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
+    centiSNPs_df.set_index(['chr', 'stop'], inplace=True)
+
+    footprint_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno3/*.gz')
     footprint_snps = sorted(footprint_snps)
 
-
     for idx,footprint_snp in enumerate(footprint_snps):
-        footsnp_df = pd.read_csv(footprint_snp,delim_whitespace=True,header=None,names=['chr','start','stop','motif','binding_strength','strand','ref_lr','alt_lr','ref','alt','effect_snp'])
-        motif_name = os.path.basename(footprint_snp).split(".")[0]
+        footsnp_df = pd.read_csv(footprint_snp,delim_whitespace=True,header=None,names=['chr','start','stop','motif','binding_strength','strand','ref_lr','alt_lr','ref','alt','footprint_snp'])
+        footsnp_df.set_index(['chr', 'start'], inplace=True)
 
-        es_idx = footsnp_df[footsnp_df['effect_snp']==2].index
-
-
-        df_alt=footsnp_df.loc[es_idx][footsnp_df.loc[es_idx]['ref_lr']<footsnp_df.iloc[es_idx]['alt_lr']].reset_index(drop=True)[['chr','start','stop']]
-
-
-        # es_df.loc[(es_df['chr'].isin(df_alt['chr']))&(es_df['start'].isin(df_alt['start'])),motif_name] = 2
-        es_df.loc[(es_df['chr'].isin(df_alt['chr']))&(es_df['start'].isin(df_alt['start']))&(es_df[footsnp_df.motif[0]]==1),footsnp_df.motif[0]] = 2
+        try:
+           motif_name = footsnp_df['motif'][0]
+        except:
+            motif_name = os.path.basename(footprint_snp).split(".")[0]
 
 
-        # if idx % 100 == 0:
-            # es_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprint_snps_ref_alt.h5','df',mode='w')
+        binding_up = (footsnp_df['ref_lr']>=footsnp_df['alt_lr'])& (np.abs(footsnp_df['ref_lr']-footsnp_df['alt_lr'])>=3)
 
-    es_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprint_snps_ref_alt.h5','df',mode='w')
-
-def make_all_compendium_ES_ref_alt_2():
-    """
-    For those ES where reference has > priorlog odds than alt, keep effect snps labeled as "1", if alt > ref, relabel those snps as "2".
-    """
-
-    compendium_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed'
-    compendium_df = pd.read_csv(compendium_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
-
-    effect_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno3/*.gz')
-    effect_snps = sorted(effect_snps)
-
-    compendium_df_c = compendium_df.copy()
-
-
-    for idx,effect_snp in enumerate(effect_snps):
-        footsnp_df = pd.read_csv(effect_snp,delim_whitespace=True,header=None,names=['chr','start','stop','motif','binding_strength','strand','ref_lr','alt_lr','ref','alt','effect_snp'])
-        motif_name = footsnp_df.motif[0]
-
-        binding_up = (footsnp_df['ref_lr']>=footsnp_df['alt_lr'])& (np.abs(footsnp_df['ref_lr']-footsnp_df['alt_lr'])>3)
-
-        binding_down = (footsnp_df['ref_lr']<footsnp_df['alt_lr'])& (np.abs(footsnp_df['ref_lr']-footsnp_df['alt_lr'])>3)
+        binding_down = (footsnp_df['ref_lr']<footsnp_df['alt_lr'])& (np.abs(footsnp_df['ref_lr']-footsnp_df['alt_lr'])>=3)
 
         footsnp_df['direct_snps'] = 0
+        centiSNPs_df[motif_name] = 0
 
-        footsnp_df['direct_snps'][binding_up] = 1
-        footsnp_df['direct_snps'][binding_down] = 2
+        merge_idx = footsnp_df.index.intersection(centiSNPs_df.index)
 
-        compendium_df_c[motif_name] = compendium_df.merge(footsnp_df,how='left',on=['chr','start','stop'])['direct_snps']
-        # compendium_df_c[motif_name].replace(1,0,inplace=True) #keep only ESnps, not FPSnps
-        # compendium_df_c[motif_name].replace(2,1,inplace=True) #keep only ESnps, not FPSnps
-    compendium_df_c.fillna(0,inplace=True)
-    compendium_df_c[motif_name] = compendium_df_c[motif_name].astype(np.int)
+        footsnp_df.loc[binding_up,'direct_snps'] = 1
+        footsnp_df.loc[binding_down,'direct_snps'] = 2
 
-    compendium_df_c.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprint_snps_ref_alt_fast.h5','df',mode='w')
+        centiSNPs_df.loc[merge_idx,motif_name] = footsnp_df['direct_snps']
 
+        centiSNPs_df[motif_name] = centiSNPs_df[motif_name].astype(np.uint8)
+        print(idx)
+
+    centiSNPs_df.reset_index(inplace=True)
+    colnames = centiSNPs_df.columns.tolist()
+    colnames[2]='stop'
+    colnames[1]='start'
+    centiSNPs_df = centiSNPs_df[colnames]
+    centiSNPs_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5','df',mode='w')
 
 def make_all_compendium_ES():
     compendium_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed'
@@ -187,6 +241,7 @@ def make_all_compendium_ES():
     compendium_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.h5','df',mode='w')
 
 def make_all_compendium_ES_fast():
+    sys.stdout = Unbuffered(sys.stdout)
     compendium_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed'
     compendium_df = pd.read_csv(compendium_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
 
@@ -196,13 +251,55 @@ def make_all_compendium_ES_fast():
     compendium_df_c = compendium_df.copy()
     for idx, effect_snp in enumerate(effect_snps):
         snps = pd.read_csv(effect_snp,delim_whitespace=True,header=None,names=['chr','start','stop','motif','binding_strength','strand','ref_lr','alt_lr','ref','alt','effect_snp'])
-        motif_name = snps['motif'][0]
+        # motif_name = snps['motif'][0]
+        motif_name = os.path.basename(effect_snp).split(".")[0]
         compendium_df_c[motif_name] = compendium_df.merge(snps,how='left',on=['chr','start','stop'])['effect_snp']
         compendium_df_c[motif_name].replace(1,0,inplace=True) #keep only ESnps, not FPSnps
         compendium_df_c[motif_name].replace(2,1,inplace=True) #keep only ESnps, not FPSnps
+
+        compendium_df_c[motif_name].fillna(0,inplace=True)
+        compendium_df_c[motif_name] = compendium_df_c[motif_name].astype(np.uint8)
         print(idx)
-    compendium_df_c.fillna(0,inplace=True)
+
     compendium_df_c.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps_fast.h5','df',mode='w')
+
+def make_centiSNPs_footprints():
+    all_snps_bed_file = '/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/results/all.centiSnps.unique.bed.gz'
+    footprint_files = glob.glob('/nfs/rprdata/Anthony/data/combo_20170721/combo/*.gz')
+    footprint_files = sorted(footprint_files)
+    centiSNP_df = pd.read_csv(all_snps_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
+
+    for idx,footprint_file in enumerate(footprint_files):
+        pwm_name = os.path.basename(footprint_file).split(".")[0]
+
+        # cmd_str = "bedtools slop -g /wsu/home/groups/piquelab/footprint.fungei/byTreatAllRepsMerged/centipede/x8bFiles/new.chromSizes.txt -l 2 -r 2 -i {1} | bedtools intersect -a {0} -b stdin -c | cut -f4".format(all_snps_bed_file,footprint_file)
+        cmd_str = "bedtools intersect -a {0} -b {1} -c | cut -f4".format(all_snps_bed_file,footprint_file)
+        raw_out = subprocess.check_output(cmd_str,shell=True)
+        out_list = raw_out.split('\n')[:-1]
+        centiSNP_df[pwm_name] = np.array(out_list,dtype='uint8')
+
+    centiSNP_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints.h5','df',mode='w')
+
+def make_centiSNPs_footprints_windowed(flank_size=150):
+    all_snps_bed_file = "/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed"
+    footprint_files = glob.glob('/nfs/rprdata/Anthony/data/combo_20170721/combo/*.gz')
+    footprint_files = sorted(footprint_files)
+    centiSNP_df = pd.read_csv(all_snps_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
+    centiSNP_df = add_flanks(centiSNP_df, flank_size)
+
+    window_foot_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_windows_{0}.bed'.format(flank_size)
+    centiSNP_df.to_csv(window_foot_file,header=False,index=False,sep="\t")
+
+    for idx,footprint_file in enumerate(footprint_files):
+        pwm_name = os.path.basename(footprint_file).split(".")[0]
+
+        # cmd_str = "bedtools slop -g /wsu/home/groups/piquelab/footprint.fungei/byTreatAllRepsMerged/centipede/x8bFiles/new.chromSizes.txt -l 2 -r 2 -i {1} | bedtools intersect -a {0} -b stdin -c | cut -f4".format(all_snps_bed_file,footprint_file)
+        cmd_str = "bedtools intersect -a {0} -b {1} -c | cut -f4".format(window_foot_file,footprint_file)
+        raw_out = subprocess.check_output(cmd_str,shell=True)
+        out_list = raw_out.split('\n')[:-1]
+        centiSNP_df[pwm_name] = np.array(out_list,dtype='uint8')
+
+    centiSNP_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprint_window_{0}.h5'.format(flank_size),'df',mode='w')
 
 def make_all_compendium_footprints():
     compendium_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed'
@@ -222,6 +319,25 @@ def make_all_compendium_footprints():
             compendium_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprints.h5','df',mode='w')
 
     compendium_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprints.h5','df',mode='w')
+
+def make_all_compendium_footprints_2():
+    compendium_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed'
+    pwm_files = glob.glob('/nfs/rprdata/Anthony/data/combo/combo/*.gz')
+    pwm_files = sorted(pwm_files)
+    compendium_df = pd.read_csv(compendium_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
+
+    for idx,pwm_file in enumerate(pwm_files):
+        pwm_name = os.path.basename(pwm_file).split(".")[0]
+
+        cmd_str = "bedtools slop -g /wsu/home/groups/piquelab/footprint.fungei/byTreatAllRepsMerged/centipede/x8bFiles/new.chromSizes.txt -l 2 -r 2 -i {1} | bedtools intersect -a {0} -b stdin -c | cut -f4".format(compendium_bed_file,pwm_file)
+        raw_out = subprocess.check_output(cmd_str,shell=True)
+        out_list = raw_out.split('\n')[:-1]
+        compendium_df[pwm_name] = np.array(out_list,dtype='uint8')
+        print(idx)
+        # if idx % 100 == 0:
+            # compendium_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprints.h5','df',mode='w')
+
+    compendium_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_footprints_2.h5','df',mode='w')
 
 def make_all_compendium_window_footprints(window_size=250):
     compendium_bed_file = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed'
