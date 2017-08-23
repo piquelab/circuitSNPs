@@ -31,178 +31,165 @@ from CNN_Models import cnn_helpers2 as CH
 from collections import OrderedDict
 from scipy.stats import linregress
 
-def plot_circuitSNPs_vs_gkm_svm(df,tissue,name,direction=True,all_4=False,save=False):
-    if direction:
-        if not all_4:
-            plt.figure(figsize=(8,8))
-            plt.ylabel("gkm\_scores",fontsize=16)
-            plt.xlabel("circuitSNP-D prediction",fontsize=16)
-            reg = linregress(df['circuitSNPs-D'],df['gkm_score'])
-            x = np.arange(df['circuitSNPs-D'].min(),
-                            df['circuitSNPs-D'].max()+1,
-                            1)
-            abline_values = [reg[0] * i + reg[1] for i in x]
-            p_val = '{:0.3e}'.format(reg[3])
-            r_val = '{:0.3f}'.format(reg[2])
-            plt.scatter(df['circuitSNPs-D'],
-                        df.gkm_score)
-            plt.plot(x,abline_values,'r')
-            plt.grid()
-            plt.title("r = {0}    p\_val = {1}".format(r_val,p_val))
-            if save:
-                plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs_D.{0}.png".format(tissue),dpi=300,transparent=True)
-        else:
+# from CENNTIPEDE import utils as CEUT
 
-            f, ax_arr = plt.subplots(2,2,figsize=(8,8))
-            ax_arr = ax_arr.reshape(-1)
-            gkm_order=["gkm\_scores","$|$gkm scores$|$","gkm scores","$|$gkm scores$|$"]
-            circuitSNP_order=["circuitSNP-D prediction","circuitSNP-D prediction","$|$circuitSNP-D prediction$|$","$|$circuitSNP-D prediction$|$"]
-            for idx in [0,1,2,3]:
-                ax_arr[idx].set_ylabel(gkm_order[idx],fontsize=16)
-                ax_arr[idx].set_xlabel(circuitSNP_order[idx],fontsize=16)
-                # ax_arr[idx].set_ylim()
-                # ax_arr[idx].axhline(true_vals[idx], color='green')
-                if idx==0:
-                    reg = linregress(df['circuitSNPs-D'],df['gkm_score'])
-                    x = np.arange(df['circuitSNPs-D'].min(),
-                                    df['circuitSNPs-D'].max()+1,
-                                    1)
-                    abline_values = [reg[0] * i + reg[1] for i in x]
-                    p_val = '{:0.3e}'.format(reg[3])
-                    # p_val = reg[3]
-                    r_val = '{:0.3f}'.format(reg[2])
-                    ax_arr[idx].scatter(df['circuitSNPs-D'],
-                                df.gkm_score)
-                    ax_arr[idx].plot(x,abline_values,'r')
-                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
-                elif idx==1:
-                    reg = linregress(df['circuitSNPs-D'],df['gkm_score'].abs())
-                    x = np.arange(df['circuitSNPs-D'].min(),
-                                    df['circuitSNPs-D'].max()+1,
-                                    1)
-                    abline_values = [reg[0] * i + reg[1] for i in x]
-                    p_val = '{:0.3e}'.format(reg[3])
-                    r_val = '{:0.3f}'.format(reg[2])
-                    ax_arr[idx].scatter(df['circuitSNPs-D'],
-                                df.gkm_score.abs())
-                    ax_arr[idx].plot(x,abline_values,'r')
-                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
-                elif idx==2:
-                    reg = linregress(df['circuitSNPs-D'].abs(),df['gkm_score'])
-                    x = np.arange(df['circuitSNPs-D'].abs().min(),
-                                    df['circuitSNPs-D'].abs().max()+1,
-                                    1)
-                    abline_values = [reg[0] * i + reg[1] for i in x]
-                    p_val = '{:0.3e}'.format(reg[3])
-                    r_val = '{:0.3f}'.format(reg[2])
-                    ax_arr[idx].scatter(df['circuitSNPs-D'].abs(),
-                                df.gkm_score)
-                    ax_arr[idx].plot(x,abline_values,'r')
-                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
-                else:
-                    reg = linregress(df['circuitSNPs-D'].abs(),df['gkm_score'].abs())
-                    x = np.arange(df['circuitSNPs-D'].abs().min(),
-                                    df['circuitSNPs-D'].abs().max()+1,
-                                    1)
-                    abline_values = [reg[0] * i + reg[1] for i in x]
-                    p_val = '{:0.3e}'.format(reg[3])
-                    r_val = '{:0.3f}'.format(reg[2])
-                    ax_arr[idx].scatter(df['circuitSNPs-D'].abs(),
-                                df.gkm_score.abs())
-                    ax_arr[idx].plot(x,abline_values,'r')
-                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
-                ax_arr[idx].grid()
+def prep_for_visualize_sparsity(count_matrix,motif_array):
+    idx = np.argsort(np.count_nonzero(count_matrix,axis=1))
+    M = count_matrix[:,idx][idx]
+    df = pd.DataFrame(data=M,columns=np.array(motif_array)[idx],index=np.array(motif_array)[idx])
+    cmap = sns.cubehelix_palette(n_colors=50,light=0.95, as_cmap=True,reverse=False)
+    return(df,cmap)
 
-                f.suptitle("circuitSNP-D \& gkmSVM scores in {0}".format(tissue),fontsize=20)
-                f.tight_layout()
-                f.subplots_adjust(top=0.9)
-                if save:
-                    plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs_D.{0}_{1}.png".format(tissue,name),dpi=300,transparent=True)
-    else:
-        if not all_4:
-            plt.figure(figsize=(8,8))
-            plt.ylabel("gkm\_scores",fontsize=16)
-            plt.xlabel("circuitSNPs prediction",fontsize=16)
-            reg = linregress(df['circuitSNPs'],df['gkm_score'])
-            x = np.arange(df['circuitSNPs'].min(),
-                            df['circuitSNPs'].max()+1,
-                            1)
-            abline_values = [reg[0] * i + reg[1] for i in x]
-            p_val = '{:0.3e}'.format(reg[3])
-            r_val = '{:0.3f}'.format(reg[2])
-            plt.scatter(df['circuitSNPs'],
-                        df.gkm_score)
-            plt.plot(x,abline_values,'r')
-            plt.title("r = {0}    p\_val = {1}".format(r_val,p_val))
-            if save:
-                plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs.{0}.png".format(tissue),dpi=300,transparent=True)
-        else:
-            f, ax_arr = plt.subplots(2,2,figsize=(8,8))
-            ax_arr = ax_arr.reshape(-1)
-            gkm_order=["gkm\_scores","$|$gkm scores$|$","gkm scores","$|$gkm scores$|$"]
-            circuitSNP_order=["circuitSNPs prediction","circuitSNPs prediction","$|$circuitSNPs prediction$|$","$|$circuitSNPs prediction$|$"]
-            for idx in [0,1,2,3]:
-                ax_arr[idx].set_ylabel(gkm_order[idx],fontsize=16)
-                ax_arr[idx].set_xlabel(circuitSNP_order[idx],fontsize=16)
-                # ax_arr[idx].set_ylim()
-                # ax_arr[idx].axhline(true_vals[idx], color='green')
-                if idx==0:
-                    reg = linregress(df['circuitSNPs'],df['gkm_score'])
-                    x = np.arange(df['circuitSNPs'].min(),
-                                    df['circuitSNPs'].max()+1,
-                                    1)
-                    abline_values = [reg[0] * i + reg[1] for i in x]
-                    p_val = '{:0.3e}'.format(reg[3])
-                    # p_val = reg[3]
-                    r_val = '{:0.3f}'.format(reg[2])
-                    ax_arr[idx].scatter(df.circuitSNPs,
-                                df.gkm_score)
-                    ax_arr[idx].plot(x,abline_values,'r')
-                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
-                elif idx==1:
-                    reg = linregress(df['circuitSNPs'],df['gkm_score'].abs())
-                    x = np.arange(df['circuitSNPs'].min(),
-                                    df['circuitSNPs'].max()+1,
-                                    1)
-                    abline_values = [reg[0] * i + reg[1] for i in x]
-                    p_val = '{:0.3e}'.format(reg[3])
-                    r_val = '{:0.3f}'.format(reg[2])
-                    ax_arr[idx].scatter(df.circuitSNPs,
-                                df.gkm_score.abs())
-                    ax_arr[idx].plot(x,abline_values,'r')
-                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
-                elif idx==2:
-                    reg = linregress(df['circuitSNPs'].abs(),df['gkm_score'])
-                    x = np.arange(df['circuitSNPs'].abs().min(),
-                                    df['circuitSNPs'].abs().max()+1,
-                                    1)
-                    abline_values = [reg[0] * i + reg[1] for i in x]
-                    p_val = '{:0.3e}'.format(reg[3])
-                    r_val = '{:0.3f}'.format(reg[2])
-                    ax_arr[idx].scatter(df.circuitSNPs.abs(),
-                                df.gkm_score)
-                    ax_arr[idx].plot(x,abline_values,'r')
-                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
-                else:
-                    reg = linregress(df['circuitSNPs'].abs(),df['gkm_score'].abs())
-                    x = np.arange(df['circuitSNPs'].abs().min(),
-                                    df['circuitSNPs'].abs().max()+1,
-                                    1)
-                    abline_values = [reg[0] * i + reg[1] for i in x]
-                    p_val = '{:0.3e}'.format(reg[3])
-                    r_val = '{:0.3f}'.format(reg[2])
-                    ax_arr[idx].scatter(df.circuitSNPs.abs(),
-                                df.gkm_score.abs())
-                    ax_arr[idx].plot(x,abline_values,'r')
-                    ax_arr[idx].set_title("r = {0}    p\_val = {1}".format(r_val,p_val))
-                ax_arr[idx].grid()
-            f.suptitle("circuitSNP \& gkmSVM scores in {0}".format(tissue),fontsize=20)
-            f.tight_layout()
-            f.subplots_adjust(top=0.9)
-            if save:
-                plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/1KG_predictions/circuitSNPs.{0}_{1}.png".format(tissue,name),dpi=300,transparent=True)
+def load_cooccurrences_3fold():
+    counts_3 = np.load('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_both_bind_3.0.npy')
+    return(counts_3)
+
+def load_master_circuitSNPs():
+    cs = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
+    return(cs)
+
+def load_motif_array():
+    motif_file = "/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/motif_columns.txt"
+    with open(motif_file,"r") as in_file:
+        # motifs = in_file.readlines().rstrip()
+        motifs = [x.strip() for x in in_file.readlines()]
+    return(np.array(motifs))
+
+def motif_pairs_counts_to_factors(count_mat, n=1, how='factor'):
+    motif_file = "/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/motif_columns.txt"
+
+    factor_dict = CEUT.make_factor_dict()
+
+    with open(motif_file,"r") as in_file:
+        motifs = [x.strip() for x in in_file.readlines()]
+
+    count_dict = {}
+    count_tracker = []
+
+    part_idx = np.argpartition(np.ravel(np.tril(count_mat)), -n)[-n:]
+    for idx,rav_idx in enumerate(part_idx):
+        count = np.tril(count_mat)[np.unravel_index(rav_idx,np.tril(count_mat).shape)]
+        if not count in count_dict.keys():
+            count_dict[count] =  np.unravel_index(rav_idx,np.tril(count_mat).shape)
+
+    count_ordered = np.sort(count_dict.keys())[::-1]
+    for idx in count_ordered:
+        if how=='factor':
+            fac1 = factor_dict[motifs[count_dict[idx][0]].split(".")[0]]
+            fac2 = factor_dict[motifs[count_dict[idx][1]].split(".")[0]]
+            print("Factors = {0} | {1}".format(fac1,fac2))
+            print("Number of co-occurrences = {0}".format(int(idx)))
+            print("\n")
+        elif how=='motif':
+            fac1 = motifs[count_dict[idx][0]]
+            fac2 = motifs[count_dict[idx][1]]
+            print("Motifs = {0} | {1}".format(fac1,fac2))
+            print("Number of co-occurrences = {0}".format(int(idx)))
+            print("\n")
+        elif how=="both":
+            fac1 = factor_dict[motifs[count_dict[idx][0]].split(".")[0]]
+            fac2 = factor_dict[motifs[count_dict[idx][1]].split(".")[0]]
+            mot1 = motifs[count_dict[idx][0]]
+            mot2 = motifs[count_dict[idx][1]]
+            print("Motifs = {0} | {1}".format(mot1,mot2))
+            print("Factors = {0} | {1}".format(fac1,fac2))
+            print("Number of co-occurrences = {0}".format(int(idx)))
+            print("----------")
 
 
+def find_ES_cooccurrence_matrix():
+    cs = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
+    motifs = cs.loc[0,'M00001':'PBM0207'].index.tolist()
+    M = cs.loc[:,'M00001':'PBM0207'].values
+    M[M==2] = 1
+    m,n = M.shape
+
+    del cs
+
+    count_mat = np.zeros((n,n))
+    sub_array = np.array_split(M,5000)
+
+    del M
+
+    for x in sub_array:
+        sub_count = x.T.dot(x)
+        np.fill_diagonal(sub_count, 0)
+        count_mat = count_mat + sub_count
+
+    np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs")
+
+def find_ES_cooccurrence_matrix_gpu(all_updown_opposite='all',log_odds = 3.0):
+    import theano
+    from theano import tensor as T
+
+    cs = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
+    motifs = cs.loc[0,'M00001':'PBM0207'].index.tolist()
+
+    cs = cs[cs['circuitSNPs-D'].abs() >= log_odds ]
+    M = cs.loc[:,'M00001':'PBM0207'].values
+    m,n = M.shape
+
+    del cs
+    sub_array = np.array_split(M,5000)
+
+    del M
+    gpuM = T.matrix()
+    gpuC = T.matrix()
+
+    gpu_dotprod = T.dot(gpuM.T, gpuM)
+    gpu_dotprod_opp = T.dot(gpuM.T, gpuC)
+
+    add_two_mat = T.add(gpuM,gpuC)
+
+    f = theano.function([gpuM], gpu_dotprod,allow_input_downcast=True)
+    o = theano.function([gpuM,gpuC], gpu_dotprod_opp,allow_input_downcast=True)
+
+    a = theano.function([gpuM,gpuC],add_two_mat,allow_input_downcast=True)
+
+
+
+    if all_updown_opposite=='all':
+        count_mat = np.zeros((n,n))
+        for idx,x in enumerate(sub_array):
+            x[x==2] = 1
+            count_mat = a(f(x),count_mat)
+            print("Mult {0} of 5000".format(idx))
+        np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_both_bind_{0}".format(log_odds), count_mat)
+        return(count_mat)
+    elif all_updown_opposite == 'updown':
+        count_mat_up = np.zeros((n,n))
+        count_mat_down = np.zeros((n,n))
+        for idx,x_up in enumerate(sub_array):
+            x_down = x_up.copy()
+
+            x_up[x_up==2] = 0
+            x_down[x_down==1] = 0
+            x_down[x_down==2] = 1
+
+            count_mat_up = a(f(x_up),count_mat_up)
+            count_mat_down = a(f(x_down),count_mat_down)
+            print("Mult {0} of 5000".format(idx))
+
+        np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_up_bind_{0}".format(log_odds), count_mat_up)
+        np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_down_bind_{0}".format(log_odds), count_mat_down)
+        return(count_mat_up,count_mat_down)
+
+    elif all_updown_opposite == 'opposite':
+        count_opp = np.zeros((n,n))
+
+        for idx,x_up in enumerate(sub_array):
+            x_down = x_up.copy()
+
+            x_up[x_up==2] = 0
+            x_down[x_down==1] = 0
+            x_down[x_down==2] = 1
+
+            count_opp = a(o(x_up,x_down),count_opp)
+            # count_mat_down = a(f(x_down),count_mat_down)
+            print("Mult {0} of 5000".format(idx))
+
+        np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_opposite_bind_{0}".format(log_odds), count_opp)
+        return(count_opp)
 
 def prep_for_compendium_predictions(circuitSNPs_model,nn_model,name):
     """
@@ -222,7 +209,9 @@ def prep_for_compendium_predictions(circuitSNPs_model,nn_model,name):
 
     if circuitSNPs_model == 'circuitSNPs':
         es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5')
-        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints.h5')
+        # foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints.h5')
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints_pad.h5')
+
 
         es = es.iloc[:,3:].values
         foot = foot.iloc[:,3:].values
@@ -230,15 +219,45 @@ def prep_for_compendium_predictions(circuitSNPs_model,nn_model,name):
 
     elif circuitSNPs_model == 'circuitSNPs-D':
         es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5')
-        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints.h5')
+        # foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints.h5')
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints_pad.h5')
 
         es = es.iloc[:,3:].values
         foot = foot.iloc[:,3:].values
         get_compendium_snp_predictions_ref_alt(foot,es,model,name)
 
+    elif circuitSNPs_model == 'circuitSNPs-lcl':
+        es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs_lcl.h5')
+        # foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints.h5')
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints_pad.h5')
+
+        es = es.iloc[:,3:].values
+        foot = foot.iloc[:,3:].values
+        get_compendium_snp_predictions_ref_alt(foot,es,model,name)
+
+    elif circuitSNPs_model == 'circuitSNPs-Windows-lcl':
+        es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5')
+
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprint_window_lcl_150.h5')
+
+        es = es.iloc[:,3:].values
+        foot = foot.iloc[:,3:].values
+        get_compendium_snp_predictions_windows(foot,es,model,name)
+
     elif circuitSNPs_model == 'circuitSNPs-Window':
         es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5')
-        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprint_window_150.h5')
+        # foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprint_window_150.h5')
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprint_window2_150.h5')
+
+
+        es = es.iloc[:,3:].values
+        foot = foot.iloc[:,3:].values
+        get_compendium_snp_predictions_windows(foot,es,model,name)
+
+    elif circuitSNPs_model == 'circuitSNPs-Windows-small':
+        es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5')
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprint_window_5.h5')
+
 
         es = es.iloc[:,3:].values
         foot = foot.iloc[:,3:].values
@@ -308,7 +327,7 @@ def get_compendium_snp_predictions_ref_alt(foot,es,model,name):
 
     np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/circuitSNPD_compendium_predictions_{0}'.format(name),y_pred)
     df_snps = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed',header=None, names=['chr','start','stop'],delim_whitespace=True)
-    es['circuitSNPs-D'] = y_pred
+    df_snps['circuitSNPs-D'] = y_pred
     df_snps.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPsD_predictions_{0}.tab'.format(name),sep='\t',index=False)
 
 
@@ -390,22 +409,7 @@ def make_pwm_conv_filters(kernel_size,width=4,rev_comp=True):
 
     return(conv_weights, num_filts, good_pwms_idx)
 
-def plot_auprc_circuitSNPs_predictions(y_true,y_preds,model_names):
-    plt.figure(figsize=(10,10))
-    for idx,y_pred in enumerate(y_preds):
-        prec,rec,_ = precision_recall_curve(y_true, y_pred)
-        auprc = average_precision_score(y_true, y_pred)
-        prec_at_10_rec = prec[np.abs(rec-0.1).argmin()]
-        auprc = '{:0.4f}'.format(auprc)
-        prec_at_10_rec = '{:0.4f}'.format(prec_at_10_rec)
-        plt.plot(rec,prec,label="{0} $|$ {1} $|$ {2}".format(model_names[idx],auprc,prec_at_10_rec),lw=3)
-    plt.grid()
-    plt.axvline(0.1,color='grey',ls="--")
-    plt.ylabel('Precision',fontsize = 20)
-    plt.xlabel('Recall',fontsize = 20)
-    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
-    plt.setp(leg.get_title(),fontsize=20)
-    plt.title("circuitSNPs Prediction",fontsize=22)
+
 
 def permute_ES_preds(X_dsqtl,X_dsqtl_pred,X_mask,model):
     preds = np.zeros(X_dsqtl.shape[0])
@@ -550,71 +554,29 @@ def get_prc_roc_validation(model, data):
     prec_10 = '{:0.4f}'.format(prec_at_10_rec)
     return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred,'prec_10':prec_10})
 
-def plot_auprc_CENNTIPEDE_validation(*met_dicts):
-    plt.figure(figsize=(8,8))
-    for idx,met_dict in enumerate(met_dicts):
-        plt.plot(met_dict['rec'],met_dict['prec'],label="Model {1} $|$ {0} $|$ {2}".format(met_dict['auprc'],idx,met_dict['prec_10']))
-    plt.grid()
-    plt.axvline(0.1,color='grey',ls="--")
-    plt.ylabel('Precision',fontsize = 20)
-    plt.xlabel('Recall',fontsize = 20)
-    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
-    plt.setp(leg.get_title(),fontsize=20)
-    plt.title("CENNTIPEDE",fontsize=22)
 
-def plot_auprc_circuitSNPs_validation(*met_dicts):
-    plt.figure(figsize=(10,10))
-    for idx,met_dict in enumerate(met_dicts):
-        plt.plot(met_dict['rec'],met_dict['prec'],label="Model {1} $|$ {0} $|$ {2}".format(met_dict['auprc'],idx,met_dict['prec_10']),lw=3)
-    plt.grid()
-    plt.axvline(0.1,color='grey',ls="--")
-    plt.ylabel('Precision',fontsize = 24)
-    plt.xlabel('Recall',fontsize = 24)
-    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
-    plt.setp(leg.get_title(),fontsize=20)
-    plt.title("circuitSNPs Model Validation",fontsize=28)
-    plt.tight_layout()
-    save_fig=True
-    if save_fig:
-        plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/model_validation_prc.pdf")
-
-def plot_auprc_circuitSNPs_predictions_2(*met_dicts):
-    plt.figure(figsize=(8,8))
-    for idx,met_dict in enumerate(met_dicts):
-        plt.plot(met_dict['rec'],met_dict['prec'],label="{1} $|$ {0} $|$ {2}".format(met_dict['auprc'],met_dict['model_name'],met_dict['prec_10']))
-    plt.grid()
-    plt.axvline(0.1,color='grey',ls="--")
-    plt.ylabel('Precision',fontsize = 20)
-    plt.xlabel('Recall',fontsize = 20)
-    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
-    plt.setp(leg.get_title(),fontsize=20)
-    plt.title("circuitSNPs",fontsize=22)
-
-def plot_auprc_circuitSNPs_predictions_3(*met_dicts):
-    plt.figure(figsize=(8,8))
-    for idx,met_dict in enumerate(met_dicts):
-        plt.plot(met_dict['rec'],met_dict['prec'],label="{1} $|$ {0} $|$ {2}".format(met_dict['auprc'],met_dict['model_name'],met_dict['prec_10']))
-    plt.grid()
-    plt.axvline(0.1,color='grey',ls="--")
-    plt.ylabel('Precision',fontsize = 20)
-    plt.xlabel('Recall',fontsize = 20)
-    plt.xlim(0,0.2)
-    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
-    plt.setp(leg.get_title(),fontsize=20)
-    plt.title("circuitSNPs",fontsize=22)
 
 def load_motif_dict():
     with open('/wsu/home/al/al37/al3786/CENNTIPEDE/motif_dict.pkl',"rb") as pkl_file:
         return(pickle.load(pkl_file))
 
 def save_CNN_model(seq_model, model_name):
-    seq_model.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/circuitSNP_model_{0}.h5".format(model_name))
+    seq_model.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/circuitSNP_model/circuitSNP_model_{0}.h5".format(model_name))
 
 def make_factor_dict():
     factor_df = pd.read_csv('/wsu/home/al/al37/al3786/factorNames.txt',header=None,delimiter="\t")
-    factor_df[0] = factor_df[0].str.replace('\.[0-9]','')
+    # factor_df[0] = factor_df[0].str.replace('\.[0-9]','')
     factor_dict = dict((zip(factor_df[0],factor_df[1])))
     return factor_dict
+
+def make_factor_cluster_dict():
+    df = pd.read_csv('/nfs/rprdata/Anthony/data/combo/clusterFactorsAvg10.named.txt',index_col=0,delimiter='\t')
+    df.reset_index(drop=True,inplace=True)
+    df = df.drop(labels='Unnamed: 5',axis=1)
+    clust_dict = {}
+    for r in df.iterrows():
+        clust_dict[r[1]['pwmId']] = r[1]['clusterId']
+    return(clust_dict)
 
 def get_best_motifs_and_factors_neg(df,min_score=7):
     """
