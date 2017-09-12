@@ -31,7 +31,7 @@ from CNN_Models import cnn_helpers2 as CH
 from collections import OrderedDict
 from scipy.stats import linregress
 
-import seaborn as sns; sns.set(color_codes=True)
+
 from CENNTIPEDE import utils as CEUT
 
 def prep_motif_cluster_heatmap(count_matrix,motifs,clust_dict,cutoff=50,scale=False,reorder=False):
@@ -76,7 +76,7 @@ def prep_motif_cluster_heatmap(count_matrix,motifs,clust_dict,cutoff=50,scale=Fa
             df_clust_sort_small = np.divide(df_clust_sort_small,D)
             np.fill_diagonal(df_clust_sort_small.values,1)
 
-        return(df_clust_sort, df_clust_sort_small)
+        return(df_clust,df_clust_sort, df_clust_sort_small)
 
     else:
         return(df_clust)
@@ -84,13 +84,17 @@ def prep_motif_cluster_heatmap(count_matrix,motifs,clust_dict,cutoff=50,scale=Fa
 
 
 def prep_for_visualize_sparsity(count_matrix,motif_array):
+    import seaborn as sns; sns.set(color_codes=True)
     idx = np.argsort(np.count_nonzero(count_matrix,axis=1))
     M = count_matrix[:,idx][idx]
+    df_unsort = pd.DataFrame(data=count_matrix,
+                    columns=np.array(motif_array),
+                    index=np.array(motif_array))
     df = pd.DataFrame(data=M,
                     columns=np.array(motif_array)[idx],
                     index=np.array(motif_array)[idx])
     cmap = sns.cubehelix_palette(n_colors=50,light=0.95, as_cmap=True,reverse=False)
-    return(df,cmap)
+    return(df_unsort,df,cmap)
 
 def load_cooccurrences_3fold():
     counts_3 = np.load('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_both_bind_3.0.npy')
@@ -98,6 +102,18 @@ def load_cooccurrences_3fold():
 
 def load_cooccurrences_both():
     counts = np.load('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu.npy')
+    return(counts)
+
+def load_cooccurrences_up():
+    counts = np.load('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_up_bind.npy')
+    return(counts)
+
+def load_cooccurrences_down():
+    counts = np.load('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_down_bind.npy')
+    return(counts)
+
+def load_cooccurrences_opposite(cutoff=0.0):
+    counts = np.load('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_opposite_bind_{0}.npy'.format(cutoff))
     return(counts)
 
 def plot_circuitSNPs_vs_gkm_svm(df,tissue,name,direction=True,all_4=False,save=False):
@@ -301,31 +317,31 @@ def plot_auprc_CENNTIPEDE_validation(*met_dicts):
     plt.setp(leg.get_title(),fontsize=20)
     plt.title("CENNTIPEDE",fontsize=22)
 
-def plot_auprc_circuitSNPs_validation(*met_dicts):
+def plot_auprc_circuitSNPs_validation(met_dicts):
     plt.figure(figsize=(10,10))
     for idx,met_dict in enumerate(met_dicts):
-        plt.plot(met_dict['rec'],met_dict['prec'],label="Model {1} $|$ {0} $|$ {2}".format(met_dict['auprc'],idx,met_dict['prec_10']),lw=3)
+        plt.plot(met_dict['rec'],met_dict['prec'],label="Replicate {1} $|$ {0} $|$ {2}".format(met_dict['auprc'],idx,met_dict['prec_10']),lw=2)
     plt.grid()
     plt.axvline(0.1,color='grey',ls="--")
     plt.ylabel('Precision',fontsize = 24)
     plt.xlabel('Recall',fontsize = 24)
-    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
+    leg = plt.legend(loc='lower left',title='Replicate $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
     plt.setp(leg.get_title(),fontsize=20)
     plt.title("circuitSNPs Model Validation",fontsize=28)
     plt.tight_layout()
-    save_fig=True
-    if save_fig:
-        plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/model_validation_prc.pdf")
+    # save_fig=True
+    # if save_fig:
+        # plt.savefig("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/model_validation_prc.pdf")
 
 def plot_auprc_circuitSNPs_predictions_2(*met_dicts):
     plt.figure(figsize=(8,8))
     for idx,met_dict in enumerate(met_dicts):
-        plt.plot(met_dict['rec'],met_dict['prec'],label="{1} $|$ {0} $|$ {2}".format(met_dict['auprc'],met_dict['model_name'],met_dict['prec_10']))
+        plt.plot(met_dict['rec'],met_dict['prec'],label="{1} $|$ {0} $|$ {2} $|$ {3}".format(met_dict['auprc'],met_dict['model_name'],met_dict['prec_10'],met_dict['rec_50']))
     plt.grid()
     plt.axvline(0.1,color='grey',ls="--")
     plt.ylabel('Precision',fontsize = 20)
     plt.xlabel('Recall',fontsize = 20)
-    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec',fontsize=16,fancybox=True,shadow=False)
+    leg = plt.legend(loc='upper right',title='Model $|$ auPRC $|$ Prec @ 10\% Rec $|$ Rec @ 50\% Prec',fontsize=16,fancybox=True,shadow=False)
     plt.setp(leg.get_title(),fontsize=20)
     plt.title("circuitSNPs",fontsize=22)
 

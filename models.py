@@ -63,7 +63,30 @@ from . import data_prep as DP
 
 from CNN_Models import cnn_helpers2 as CH
 
-def make_CENNTIPEDE_model(data,units1=500,units2=500):
+def make_CENNTIPEDE_model_simple_0(data):
+    ada = Adadelta()
+    input0 = Input(shape=(data['train_data_X'].shape[1],))
+    predictions = Dense(1, activation='sigmoid')(input0)
+
+    model = Model(inputs=input0, outputs=predictions)
+    model.compile(loss='binary_crossentropy',
+                    optimizer=ada,
+                    metrics=["binary_accuracy","mean_absolute_error"])
+    return(model)
+
+def make_CENNTIPEDE_model_simple_1(data,units1=1):
+    ada = Adadelta()
+    input0 = Input(shape=(data['train_data_X'].shape[1],))
+    lay1 = Dense(units1,activation='relu',name='HL1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(input0)
+    predictions = Dense(1, activation='sigmoid')(lay1)
+
+    model = Model(inputs=input0, outputs=predictions)
+    model.compile(loss='binary_crossentropy',
+                    optimizer=ada,
+                    metrics=["binary_accuracy","mean_absolute_error"])
+    return(model)
+
+def make_CENNTIPEDE_model(data,units1=50,units2=10):
     ada = Adadelta()
     input0 = Input(shape=(data['train_data_X'].shape[1],))
     lay1 = Dense(units1,activation='relu',name='HL1',use_bias=True,activity_regularizer=regularizers.l1(10e-5))(input0)

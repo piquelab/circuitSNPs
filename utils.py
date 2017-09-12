@@ -33,6 +33,63 @@ from scipy.stats import linregress
 
 # from CENNTIPEDE import utils as CEUT
 
+def load_model_replicates():
+    repSNPs = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_50_10.tab',delim_whitespace=True)
+
+    repSNPs_small = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_10_5.tab',delim_whitespace=True)
+
+    repSNPs_big = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_200_40.tab',delim_whitespace=True)
+
+    repSNPs_xsmall = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_5_3.tab',delim_whitespace=True)
+
+    repSNPs_one_unit = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_1_0.tab',delim_whitespace=True)
+
+    repSNPs_zero_unit = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_0_0.tab',delim_whitespace=True)
+    return([repSNPs_big,repSNPs,repSNPs_small,repSNPs_xsmall,repSNPs_one_unit,repSNPs_zero_unit])
+
+
+def circD_beers_replicates(df,model_prefix):
+
+    m,n = df.shape
+    # y_pred = np.empty(m)
+    y_pred = np.empty((m,10))
+    model_dir = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/circuitSNP_model/replicate_test'
+    models = glob.glob("{0}/{1}_*.h5".format(model_dir,model_prefix))
+    for mod_idx,mod in enumerate(models):
+        model = load_model(mod)
+        print(mod_idx)
+        for idx in np.arange(m):
+            foot_vect_t = df.loc[idx,:'PBM0207'].copy()
+            ES_ref = np.where(foot_vect_t==1)[0]
+            ES_alt = np.where(foot_vect_t==2)[0]
+
+            tmp_ref = foot_vect_t[None,:].copy()
+            tmp_ref[0][ES_alt] = 0
+            es_pred_ref = np.squeeze(model.predict(tmp_ref))
+
+            # prediction_t = np.squeeze(model.predict(foot_vect_t[None,:]))
+
+            tmp_alt = foot_vect_t[None,:].copy()
+            tmp_alt[0][ES_ref] = 0
+            tmp_alt[0][ES_alt] = 1
+            es_pred_alt = np.squeeze(model.predict(tmp_alt))
+            lo = log_diffs(es_pred_ref,es_pred_alt)
+
+            y_pred[idx,mod_idx]=lo
+            # if idx % 100000 == 0:
+            # print("Predicted {0} SNPs".format(idx))
+
+        # np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/circuitSNPD_compendium_predictions_{0}'.format(name),y_pred)
+        # df_snps = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed',header=None, names=['chr','start','stop'],delim_whitespace=True)
+    try:
+        df2=pd.DataFrame(data=y_pred)
+        df2['label'] = df['label']
+        df2.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds.tab',sep='\t',index=False)
+        return(df2)
+    except:
+        return(y_pred)
+
+
 def prep_for_visualize_sparsity(count_matrix,motif_array):
     idx = np.argsort(np.count_nonzero(count_matrix,axis=1))
     M = count_matrix[:,idx][idx]
@@ -125,7 +182,7 @@ def find_ES_cooccurrence_matrix_gpu(all_updown_opposite='all',log_odds = 3.0):
     cs = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
     motifs = cs.loc[0,'M00001':'PBM0207'].index.tolist()
 
-    cs = cs[cs['circuitSNPs-D'].abs() >= log_odds ]
+    cs = cs[cs['circuitSNPs-D'].abs() > log_odds ]
     M = cs.loc[:,'M00001':'PBM0207'].values
     m,n = M.shape
 
@@ -184,12 +241,68 @@ def find_ES_cooccurrence_matrix_gpu(all_updown_opposite='all',log_odds = 3.0):
             x_down[x_down==1] = 0
             x_down[x_down==2] = 1
 
-            count_opp = a(o(x_up,x_down),count_opp)
+            count_a = o(x_up,x_down)
+            count_b = o(x_down,x_up)
+
+            count_opp = a(a(count_a,count_b),count_opp)
             # count_mat_down = a(f(x_down),count_mat_down)
             print("Mult {0} of 5000".format(idx))
 
         np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_opposite_bind_{0}".format(log_odds), count_opp)
         return(count_opp)
+
+
+def find_ES_cooccurrence_matrix_gpu_with_footprint_snps(log_odds = 0.0):
+    import theano
+    from theano import tensor as T
+
+    cs_pre = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
+    motifs = cs_pre.loc[0,'M00001':'PBM0207'].index.tolist()
+
+    cs = cs_pre[cs_pre['circuitSNPs-D'].abs() > log_odds ]
+    M = cs.loc[:,'M00001':'PBM0207'].values
+    m,n = M.shape
+
+    del cs
+    sub_array = np.array_split(M,5000)
+    del M
+
+    foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints_pad.h5')
+    foot = foot.loc[:,'M00001':'PBM0207'].values
+    foot = foot[cs_pre['circuitSNPs-D'].abs() > log_odds ]
+    del cs_pre
+    sub_array_foot = np.array_split(foot,5000)
+    
+    gpuM = T.matrix()
+    gpuC = T.matrix()
+
+    gpu_dotprod = T.dot(gpuM.T, gpuM)
+    gpu_dotprod_opp = T.dot(gpuM.T, gpuC)
+
+    add_two_mat = T.add(gpuM,gpuC)
+
+    f = theano.function([gpuM], gpu_dotprod,allow_input_downcast=True)
+    o = theano.function([gpuM,gpuC], gpu_dotprod_opp,allow_input_downcast=True)
+
+    a = theano.function([gpuM,gpuC],add_two_mat,allow_input_downcast=True)
+
+    count_mat_ES = np.zeros((n,n))
+    count_mat_NonES = np.zeros((n,n))
+    for idx,x_es in enumerate(sub_array):
+        x_es[x_es==2] = 1
+        x_foot = sub_array_foot[idx]
+        x_foot[x_foot >1] = 1
+        count_mat_NonES1 = o(x_es,x_foot)
+        count_mat_NonES2 = o(x_foot,x_es)
+        count_mat_NonES = a(a(count_mat_NonES1,count_mat_NonES2),count_mat_NonES)
+
+        count_mat_ES = a(f(x_es),count_mat_ES)
+
+        print("Mult {0} of 5000".format(idx))
+
+    np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
+    np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
+    return(count_mat_ES,count_mat_NonES)
 
 def prep_for_compendium_predictions(circuitSNPs_model,nn_model,name):
     """
@@ -257,6 +370,15 @@ def prep_for_compendium_predictions(circuitSNPs_model,nn_model,name):
     elif circuitSNPs_model == 'circuitSNPs-Windows-small':
         es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5')
         foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprint_window_5.h5')
+
+
+        es = es.iloc[:,3:].values
+        foot = foot.iloc[:,3:].values
+        get_compendium_snp_predictions_windows(foot,es,model,name)
+
+    elif circuitSNPs_model == 'circuitSNPs-Windows-100':
+        es = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs.h5')
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprint_window_50.h5')
 
 
         es = es.iloc[:,3:].values
@@ -527,7 +649,23 @@ def circuitSNP_metrics(predictions, labels,model_name):
     auprc = '{:0.4f}'.format(auPRC)
     auroc = '{:0.4f}'.format(auROC)
     prec_10 = '{:0.4f}'.format(prec_at_10_rec)
-    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred,'prec_10':prec_10,'model_name':model_name})
+    rec_50 = '{:0.4f}'.format(mets['rec50'])
+    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred,'prec_10':prec_10,'model_name':model_name,'rec_50':rec_50})
+
+def circuitSNP_test_new_model_metrics(test_data,test_y, model):
+    x = test_data
+    y_pred = model.predict(x, verbose=0)
+    y = test_y
+    mets = CH.get_metrics(y, y_pred)
+    prec,rec,_ = precision_recall_curve(y, y_pred)
+    auPRC = average_precision_score(y,y_pred)
+    fpr,tpr,_ = roc_curve(y,y_pred)
+    auROC = auc(fpr,tpr)
+    prec_at_10_rec = prec[np.abs(rec-0.1).argmin()]
+    auprc = '{:0.4f}'.format(auPRC)
+    auroc = '{:0.4f}'.format(auROC)
+    prec_10 = '{:0.4f}'.format(prec_at_10_rec)
+    return({'prec':prec,'rec':rec,'auprc':auprc,'fpr':fpr,'tpr':tpr,'auroc':auroc,'y_pred':y_pred,'prec_10':prec_10})
 
 def log_diffs(prob1,prob2):
     ref_pred = prob1

@@ -1173,9 +1173,12 @@ def make_CENNTIPEDE_effect_snp_training_data_1():
     Y=np.hstack([np.ones(X_pos.shape[0]),np.zeros(X_neg.shape[0])])
     X[X>1] = 1
     return(make_train_test_data(X,Y))
+
 def make_train_test_data(X,Y):
-    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.15, stratify=Y,random_state=172345)
-    X_val, X_test, Y_val, Y_test = train_test_split(X_test, Y_test, test_size=0.5, stratify=Y_test,random_state=1723450)
+    # X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.15, stratify=Y,random_state=172345) # real model uses this random state to make data
+    # X_val, X_test, Y_val, Y_test = train_test_split(X_test, Y_test, test_size=0.5, stratify=Y_test,random_state=1723450)
+    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.15, stratify=Y)
+    X_val, X_test, Y_val, Y_test = train_test_split(X_test, Y_test, test_size=0.5, stratify=Y_test)
     data = CH.make_seq_data_dict([X_train, X_val, X_test, Y_train, Y_val,Y_test])
     return(data)
 
