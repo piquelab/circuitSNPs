@@ -34,6 +34,45 @@ from scipy.stats import linregress
 
 from CENNTIPEDE import utils as CEUT
 
+
+def reverse_colourmap(cmap, name = 'my_cmap_r'):
+    """
+    In: 
+    cmap, name 
+    Out:
+    my_cmap_r
+
+    Explanation:
+    t[0] goes from 0 to 1
+    row i:   x  y0  y1 -> t[0] t[1] t[2]
+                   /
+                  /
+    row i+1: x  y0  y1 -> t[n] t[1] t[2]
+
+    so the inverse should do the same:
+    row i+1: x  y1  y0 -> 1-t[0] t[2] t[1]
+                   /
+                  /
+    row i:   x  y1  y0 -> 1-t[n] t[2] t[1]
+    """        
+    reverse = []
+    k = []   
+
+    for key in cmap._segmentdata:    
+        k.append(key)
+        channel = cmap._segmentdata[key]
+        data = []
+
+        for t in channel:                    
+            data.append((1-t[0],t[2],t[1]))            
+        reverse.append(sorted(data))    
+
+    LinearL = dict(zip(k,reverse))
+    my_cmap_r = mpl.colors.LinearSegmentedColormap(name, LinearL) 
+    return my_cmap_r
+
+    
+
 def prep_motif_cluster_heatmap(count_matrix,motifs,clust_dict,cutoff=50,scale=False,reorder=False):
 
     clust_names = [clust_dict[x] for x in motifs]
@@ -95,6 +134,10 @@ def prep_for_visualize_sparsity(count_matrix,motif_array):
                     index=np.array(motif_array)[idx])
     cmap = sns.cubehelix_palette(n_colors=50,light=0.95, as_cmap=True,reverse=False)
     return(df_unsort,df,cmap)
+
+def load_footprint_pairs():
+    foot_pairs = np.load('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/footprint_snp_pairs.npy')
+    return(foot_pairs)
 
 def load_cooccurrences_3fold():
     counts_3 = np.load('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_both_bind_3.0.npy')

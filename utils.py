@@ -30,25 +30,97 @@ from keras.models import load_model
 from CNN_Models import cnn_helpers2 as CH
 from collections import OrderedDict
 from scipy.stats import linregress
+import scipy.stats as stats
+from statsmodels.sandbox.stats.multicomp import multipletests
 
-# from CENNTIPEDE import utils as CEUT
 
-def load_model_replicates():
-    repSNPs = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_50_10.tab',delim_whitespace=True)
+def cooccurrence_pvals1(four_arr_table, count_thresh=250,odds_cut=5):
+    
+    
+    def np_fisher(a,b,c,d):
+        oddsratio, pvalue = stats.fisher_exact([[a, b], [c, d]])
+        return(oddsratio,pvalue)
+    np_fisher2 = np.vectorize(np_fisher)
 
-    repSNPs_small = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_10_5.tab',delim_whitespace=True)
+    # eps = 7./3 - 4./3 -1
 
-    repSNPs_big = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_200_40.tab',delim_whitespace=True)
+    mats_mod1 = np.array(four_arr_table)
+    
+    # X_df = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
+    # motifs = X_df.loc[0,'M00001':'PBM0207'].index.tolist()
+    # motifs = np.array(motifs)
+    # factor_dict = CEUT.make_factor_dict()
+    
+    np.fill_diagonal(mats_mod1[0],0)
+    np.fill_diagonal(mats_mod1[1],0)
+    np.fill_diagonal(mats_mod1[2],0)
+    np.fill_diagonal(mats_mod1[3],0)
 
-    repSNPs_xsmall = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_5_3.tab',delim_whitespace=True)
+    # odds_adj = ((mats_mod1[0]+1)/(mats_mod1[1]+1))/((mats_mod1[2]+1)/(mats_mod1[3]+1))
+    ct = count_thresh
+    idx = np.where((mats_mod1[0]>ct) & (mats_mod1[1]>ct) & (mats_mod1[2]>ct) & (mats_mod1[3]>ct))
 
-    repSNPs_one_unit = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_1_0.tab',delim_whitespace=True)
+    idx1 = np.unique(idx[0])
+    idx2 = np.unique(idx[1])
+    idx3 = np.union1d(idx1,idx2)
 
-    repSNPs_zero_unit = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds_0_0.tab',delim_whitespace=True)
+    mats_thresh = mats_mod1[:,idx3,:][:,:,idx3]
+
+    odds, pvals = np_fisher2(mats_thresh[0]+1,mats_thresh[1]+1,mats_thresh[2]+1,mats_thresh[3]+1)
+
+    bh_adjusted = multipletests(pvals.ravel(), alpha=0.001,method='fdr_bh')
+
+    pvals_adj = np.reshape(bh_adjusted[1],pvals.shape)
+
+
+    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/stat_tests/full_counts_oddsr_pval",[odds,pvals_adj])
+    return(mats_thresh,idx3,odds,pvals,pvals_adj)
+
+
+
+def load_snp_model_replicates():
+    repSNPs = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/beers_replicate_preds_50_10.tab',delim_whitespace=True)
+
+    repSNPs_small = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/beers_replicate_preds_10_5.tab',delim_whitespace=True)
+
+    repSNPs_big = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/beers_replicate_preds_200_40.tab',delim_whitespace=True)
+
+    repSNPs_xsmall = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/beers_replicate_preds_5_3.tab',delim_whitespace=True)
+
+    repSNPs_one_unit = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/beers_replicate_preds_1_0.tab',delim_whitespace=True)
+
+    repSNPs_zero_unit = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/beers_replicate_preds_0_0.tab',delim_whitespace=True)
     return([repSNPs_big,repSNPs,repSNPs_small,repSNPs_xsmall,repSNPs_one_unit,repSNPs_zero_unit])
 
+def load_window_model_replicates():
+    repSNPs = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/window_model/beers_replicate_preds_50_10.tab',delim_whitespace=True)
 
-def circD_beers_replicates(df,model_prefix):
+    repSNPs_small = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/window_model/beers_replicate_preds_10_5.tab',delim_whitespace=True)
+
+    repSNPs_big = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/window_model/beers_replicate_preds_200_40.tab',delim_whitespace=True)
+
+    repSNPs_xsmall = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/window_model/beers_replicate_preds_5_3.tab',delim_whitespace=True)
+
+    repSNPs_one_unit = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/window_model/beers_replicate_preds_1_0.tab',delim_whitespace=True)
+
+    repSNPs_zero_unit = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/window_model/beers_replicate_preds_0_0.tab',delim_whitespace=True)
+    return([repSNPs_big,repSNPs,repSNPs_small,repSNPs_xsmall,repSNPs_one_unit,repSNPs_zero_unit])
+
+def load_model_replicates_for_tewhey():
+    repSNPs = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/quasar_tewhey_replicate_preds_circuitSNP_50_10.tab',delim_whitespace=True)
+
+    repSNPs_small = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/quasar_tewhey_replicate_preds_circuitSNP_10_5.tab',delim_whitespace=True)
+
+    repSNPs_big = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/quasar_tewhey_replicate_preds_circuitSNP_200_40.tab',delim_whitespace=True)
+
+    repSNPs_xsmall = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/quasar_tewhey_replicate_preds_circuitSNP_5_3.tab',delim_whitespace=True)
+
+    repSNPs_one_unit = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/quasar_tewhey_replicate_preds_circuitSNP_1_0.tab',delim_whitespace=True)
+
+    repSNPs_zero_unit = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/quasar_tewhey_replicate_preds_circuitSNP_0_0.tab',delim_whitespace=True)
+    return([repSNPs_big,repSNPs,repSNPs_small,repSNPs_xsmall,repSNPs_one_unit,repSNPs_zero_unit])
+
+def circD_beers_replicates(df_,model_prefix):
 
     m,n = df.shape
     # y_pred = np.empty(m)
@@ -79,12 +151,108 @@ def circD_beers_replicates(df,model_prefix):
             # if idx % 100000 == 0:
             # print("Predicted {0} SNPs".format(idx))
 
-        # np.save('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/circuitSNPD_compendium_predictions_{0}'.format(name),y_pred)
-        # df_snps = pd.read_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed',header=None, names=['chr','start','stop'],delim_whitespace=True)
     try:
         df2=pd.DataFrame(data=y_pred)
         df2['label'] = df['label']
         df2.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/beers_replicate_preds.tab',sep='\t',index=False)
+        return(df2)
+    except:
+        return(y_pred)
+
+def circD_beers_replicates_full_model(es_df,foot_df,model_prefix,thresh=5,model_window='snp'):
+    """
+    This model now uses 2 and 3 as effect snp labels, 1 indicates a footsnp, and 0 indicates none of them.
+    """
+    es = es_df.loc[:,'M00001':'PBM0207'].values
+    m,n = es.shape
+    
+    foot = foot_df.loc[:,'M00001':'PBM0207'].values
+    
+    y_pred = np.empty((m,10))
+    model_dir = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/circuitSNP_model/replicate_test/full_model/snp_model'
+
+    ## Load the 10 trained models into a dict 
+    models = glob.glob("{0}/circuitSNP_{1}_*.h5".format(model_dir,model_prefix))
+    model_dict = {}
+    for mod_idx,mod in enumerate(models):
+        model_dict[mod_idx] = load_model(mod)
+    
+    ## For each SNP, make prediction with each NN model.
+    for idx in np.arange(m):
+        foot_vect_t = foot[idx,:].copy()
+
+        ES_ref = np.where(es[idx,:]==2)[0]
+        ES_alt = np.where(es[idx,:]==3)[0]
+
+        tmp_ref = foot_vect_t[None,:].copy()
+        tmp_ref[0][ES_alt] = 0
+
+        tmp_alt = foot_vect_t[None,:].copy()
+        tmp_alt[0][ES_ref] = 0
+        tmp_alt[0][ES_alt] = 1
+
+        for model_idx in np.arange(10):
+            model = model_dict[model_idx]
+            es_pred_ref = np.squeeze(model.predict(tmp_ref))
+            es_pred_alt = np.squeeze(model.predict(tmp_alt))
+            lo = log_diffs(es_pred_ref,es_pred_alt)
+
+            y_pred[idx,model_idx]=lo
+        if idx % 7000 == 0:
+            print("Predicted {0} SNPs".format(idx))
+
+    try:
+        df2=pd.DataFrame(data=y_pred)
+        df2 = pd.concat([es_df[['chr','start','stop','rsID','es_count','fs_count','fs_only','abs_gkm_SVM','label']],df2],axis=1)
+        df2['label'] = es_df['label']
+        if model_window=='snp':
+            df2.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/beers_rep_preds_{0}_thresh_{1}.tab'.format(model_prefix,thresh),sep='\t',index=False)
+            return(df2)
+        elif model_window == 'window':
+            df2.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/window_model/beers_rep_preds_{0}_thresh_{1}.tab'.format(model_prefix,thresh),sep='\t',index=False)
+            return(df2)        
+    except:
+        return(y_pred)
+
+
+
+def circD_quasar_replicates(df_ES,df_FS,model_prefix):
+
+    m,n = df_ES.shape
+    y_pred = np.empty((m,10))
+    model_dir = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/circuitSNP_model/replicate_test/full_model/snp_model'
+    models = glob.glob("{0}/circuitSNP_{1}_*.h5".format(model_dir,model_prefix))
+
+    model_dict = {}
+    for mod_idx,mod in enumerate(models):
+        model_dict[mod_idx] = load_model(mod)
+
+
+    for idx in np.arange(m):
+            foot_vect_t = df_FS.loc[idx,'M00001':'PBM0207'].values.copy()
+            ES_vect_t = df_ES.loc[idx,'M00001':'PBM0207'].values.copy()
+            ES_ref = np.where(ES_vect_t==1)[0]
+            ES_alt = np.where(ES_vect_t==2)[0]
+
+            tmp_ref = foot_vect_t[None,:].copy()
+            tmp_ref[0][ES_alt] = 0
+            
+            tmp_alt = foot_vect_t[None,:].copy()
+            tmp_alt[0][ES_ref] = 0
+            tmp_alt[0][ES_alt] = 1
+
+            for model_idx in np.arange(10):
+                model = model_dict[model_idx]
+                es_pred_ref = np.squeeze(model.predict(tmp_ref))
+                es_pred_alt = np.squeeze(model.predict(tmp_alt))
+                lo = log_diffs(es_pred_ref,es_pred_alt)
+                y_pred[idx,mod_idx]=lo
+            
+
+    try:
+        df2=pd.DataFrame(data=y_pred)
+        df2['label'] = df_ES['betas_T']
+        df2.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/quasar_tewhey_replicate_preds_{0}.tab'.format(model_prefix),sep='\t',index=False)
         return(df2)
     except:
         return(y_pred)
@@ -252,57 +420,319 @@ def find_ES_cooccurrence_matrix_gpu(all_updown_opposite='all',log_odds = 3.0):
         return(count_opp)
 
 
-def find_ES_cooccurrence_matrix_gpu_with_footprint_snps(log_odds = 0.0):
+def cooccurrence_enrichment_gpu_1(log_odds = 3.0,cs_pre = None,foot=None):
     import theano
     from theano import tensor as T
 
-    cs_pre = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
-    motifs = cs_pre.loc[0,'M00001':'PBM0207'].index.tolist()
+    if cs_pre is None:
+        print("Loading circuitSNPs Data")
+        cs_pre = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
+        cs_pre = cs_pre[(cs_pre.snp==1.0) & (cs_pre['es-count']>0)]
+    else:
+        print("circuitSNPs Data provided")
 
-    cs = cs_pre[cs_pre['circuitSNPs-D'].abs() > log_odds ]
-    M = cs.loc[:,'M00001':'PBM0207'].values
-    m,n = M.shape
+    if foot is None:
+        print("Loading footprint data")
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints_pad.h5')
+        foot = foot.iloc[cs_pre.index]
+    else:
+        print("footprint data provided")
 
-    del cs
-    sub_array = np.array_split(M,5000)
-    del M
 
-    foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints_pad.h5')
-    foot = foot.loc[:,'M00001':'PBM0207'].values
-    foot = foot[cs_pre['circuitSNPs-D'].abs() > log_odds ]
+    F = foot.iloc[:,3:].values
+    F[F>1] = 1
+
+    S = cs_pre['circuitSNPs-D'].abs() >= log_odds 
+    S = S.astype(np.int).values
+
+    X = cs_pre.loc[:,'M00001':'PBM0207'].values
+    X[X>1] = 1
+    m,n = X.shape
+
     del cs_pre
-    sub_array_foot = np.array_split(foot,5000)
+    del foot
+    X = np.array_split(X,5000)
+    S = np.array_split(S,5000)
+    F = np.array_split(F,5000)
     
-    gpuM = T.matrix()
-    gpuC = T.matrix()
+    gpuX = T.matrix()
+    gpuS = T.matrix()
 
-    gpu_dotprod = T.dot(gpuM.T, gpuM)
-    gpu_dotprod_opp = T.dot(gpuM.T, gpuC)
+    gpu_dotprod = T.dot(gpuX.T, gpuX)
+    gpu_dotprod_2 = T.dot(gpuX.T, gpuS)
+    add_two_mat = T.add(gpuX,gpuS)
 
-    add_two_mat = T.add(gpuM,gpuC)
+    dotprod_1th = theano.function([gpuX], gpu_dotprod,allow_input_downcast=True)
+    dotprod_2th = theano.function([gpuX,gpuS], gpu_dotprod_2,allow_input_downcast=True)
+    add_mat_th = theano.function([gpuX,gpuS],add_two_mat,allow_input_downcast=True)
 
-    f = theano.function([gpuM], gpu_dotprod,allow_input_downcast=True)
-    o = theano.function([gpuM,gpuC], gpu_dotprod_opp,allow_input_downcast=True)
+    count_mat_A = np.zeros((n,n))
+    count_mat_B = np.zeros((n,n))
+    count_mat_C = np.zeros((n,n))
+    count_mat_D = np.zeros((n,n))
 
-    a = theano.function([gpuM,gpuC],add_two_mat,allow_input_downcast=True)
+    for idx,z in enumerate(zip(X,S,F)):
+        e=z[0]
+        s=z[1]
+        f=z[2]
 
-    count_mat_ES = np.zeros((n,n))
-    count_mat_NonES = np.zeros((n,n))
-    for idx,x_es in enumerate(sub_array):
-        x_es[x_es==2] = 1
-        x_foot = sub_array_foot[idx]
-        x_foot[x_foot >1] = 1
-        count_mat_NonES1 = o(x_es,x_foot)
-        count_mat_NonES2 = o(x_foot,x_es)
-        count_mat_NonES = a(a(count_mat_NonES1,count_mat_NonES2),count_mat_NonES)
+        # e = x==2
+        # e = e.astype(np.int)
+        s = s[:,None]
+        # f = f-e
+        # f = f.astype(np.int)
+        
+        #A
+        es = e*s
+        count_mat_A = add_mat_th(dotprod_2th(es,f),count_mat_A)
 
-        count_mat_ES = a(f(x_es),count_mat_ES)
+        #B
+        e1s = e*(1-s)
+        count_mat_B = add_mat_th(dotprod_2th(e1s,f),count_mat_B)
 
-        print("Mult {0} of 5000".format(idx))
+        #C
+        # es = e*s
+        count_mat_C = add_mat_th(dotprod_2th(es,(1-f)),count_mat_C)
 
-    np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
-    np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
-    return(count_mat_ES,count_mat_NonES)
+        #D
+        # d = e*(1-s)
+        count_mat_D = add_mat_th(dotprod_2th(e1s,(1-f)),count_mat_D)
+
+        if idx % 500 == 0:
+            print("Mult {0} of 5000".format(idx))
+
+    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
+    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
+    return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)
+
+def cooccurrence_enrichment_gpu_1_rev2(log_odds = 3.0,data_mat=None):
+    import theano
+    from theano import tensor as T
+
+    if data_mat is None:
+        print("Loading circuitSNPs Data")
+        data_mat = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs_with_footsnps.h5')
+        data_mat = data_mat[(data_mat.snp==1.0) & (data_mat['es-count']>0)]
+    else:
+        print("circuitSNPs Data provided")
+
+    F = data_mat.loc[:,'M00001':'PBM0207'].values == 1
+    
+    # F[F>1] = 1
+
+    S = data_mat['circuitSNPs-D'].abs() >= log_odds 
+    # S = S.astype(np.int).values
+
+    X = data_mat.loc[:,'M00001':'PBM0207'].values > 1
+    # X[X>1] = 1
+    m,n = X.shape
+
+    del data_mat
+    del foot
+    X = np.array_split(X,5000)
+    S = np.array_split(S,5000)
+    F = np.array_split(F,5000)
+    
+    gpuX = T.matrix()
+    gpuS = T.matrix()
+
+    gpu_dotprod = T.dot(gpuX.T, gpuX)
+    gpu_dotprod_2 = T.dot(gpuX.T, gpuS)
+    add_two_mat = T.add(gpuX,gpuS)
+
+    dotprod_1th = theano.function([gpuX], gpu_dotprod,allow_input_downcast=True)
+    dotprod_2th = theano.function([gpuX,gpuS], gpu_dotprod_2,allow_input_downcast=True)
+    add_mat_th = theano.function([gpuX,gpuS],add_two_mat,allow_input_downcast=True)
+
+    count_mat_A = np.zeros((n,n))
+    count_mat_B = np.zeros((n,n))
+    count_mat_C = np.zeros((n,n))
+    count_mat_D = np.zeros((n,n))
+
+    for idx,z in enumerate(zip(X,S,F)):
+        e=z[0]
+        s=z[1]
+        f=z[2]
+
+        # e = x==2
+        e = e.astype(np.int)
+        s = s[:,None].astype(np.int)
+        # f = f-e
+        f = f.astype(np.int)
+        
+        #A
+        es = e*s
+        count_mat_A = add_mat_th(dotprod_2th(es,f),count_mat_A)
+
+        #B
+        e1s = e*(1-s)
+        count_mat_B = add_mat_th(dotprod_2th(e1s,f),count_mat_B)
+
+        #C
+        # es = e*s
+        count_mat_C = add_mat_th(dotprod_2th(es,(1-f)),count_mat_C)
+
+        #D
+        # d = e*(1-s)
+        count_mat_D = add_mat_th(dotprod_2th(e1s,(1-f)),count_mat_D)
+
+        if idx % 500 == 0:
+            print("Mult {0} of 5000".format(idx))
+
+    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
+    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
+    return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)    
+
+def cooccurrence_enrichment_gpu_2(log_odds = 3.0,cs_pre = None,foot=None):
+    import theano
+    from theano import tensor as T
+
+    if cs_pre is None:
+        print("Loading circuitSNPs Data")
+        cs_pre = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
+        cs_pre = cs_pre[(cs_pre.snp==1.0) & (cs_pre['es-count']>0)]
+    else:
+        print("circuitSNPs Data provided")
+
+    if foot is None:
+        print("Loading footprint data")
+        foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints_pad.h5')
+        foot = foot.iloc[cs_pre.index]
+    else:
+        print("footprint data provided")
+
+
+    F = foot.iloc[:,3:].values
+    F[F>1] = 1
+
+    S = cs_pre['circuitSNPs-D'].abs() >= log_odds 
+    S = S.astype(np.int).values
+
+    X = cs_pre.loc[:,'M00001':'PBM0207'].values
+    X[X>1] = 1
+    m,n = X.shape
+
+    del cs_pre
+    del foot
+    X = np.array_split(X,5000)
+    S = np.array_split(S,5000)
+    F = np.array_split(F,5000)
+    
+    gpuX = T.matrix()
+    gpuS = T.matrix()
+
+    gpu_dotprod = T.dot(gpuX.T, gpuX)
+    gpu_dotprod_2 = T.dot(gpuX.T, gpuS)
+    add_two_mat = T.add(gpuX,gpuS)
+
+    dotprod_1th = theano.function([gpuX], gpu_dotprod,allow_input_downcast=True)
+    dotprod_2th = theano.function([gpuX,gpuS], gpu_dotprod_2,allow_input_downcast=True)
+    add_mat_th = theano.function([gpuX,gpuS],add_two_mat,allow_input_downcast=True)
+
+    count_mat_A = np.zeros((n,n))
+    count_mat_B = np.zeros((n,n))
+    count_mat_C = np.zeros((n,n))
+    count_mat_D = np.zeros((n,n))
+
+    for idx,z in enumerate(zip(X,S,F)):
+        e=z[0]
+        s=z[1]
+        f=z[2]
+
+        # e = x==2
+        s = s[:,None]
+        # f = f-e
+        
+        #A
+        es = e*s
+        count_mat_A = add_mat_th(dotprod_2th(es,e),count_mat_A)
+
+        #B
+        e1s = e*(1-s)
+        count_mat_B = add_mat_th(dotprod_2th(e1s,e),count_mat_B)
+
+        #C
+        fe = f*(1-e)
+        count_mat_C = add_mat_th(dotprod_2th(es,fe),count_mat_C)
+
+        #D
+        count_mat_D = add_mat_th(dotprod_2th(e1s,fe),count_mat_D)
+
+        if idx % 500 == 0:
+            print("Mult {0} of 5000".format(idx))
+
+    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
+    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
+    return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)
+
+def cooccurrence_enrichment_gpu_2_rev2(log_odds = 3.0,data_mat=None):
+    import theano
+    from theano import tensor as T
+
+    if data_mat is None:
+        print("Loading circuitSNPs Data")
+        data_mat = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs_with_footsnps.h5')
+        data_mat = data_mat[(data_mat.snp==1.0) & (data_mat['es-count']>0)]
+    else:
+        print("circuitSNPs Data provided")
+
+    F = data_mat.loc[:,'M00001':'PBM0207'].values == 1
+    S = data_mat['circuitSNPs-D'].abs() >= log_odds 
+    X = data_mat.loc[:,'M00001':'PBM0207'].values > 1
+    m,n = X.shape
+
+    del data_mat
+    X = np.array_split(X,5000)
+    S = np.array_split(S,5000)
+    F = np.array_split(F,5000)
+    
+    gpuX = T.matrix()
+    gpuS = T.matrix()
+
+    gpu_dotprod = T.dot(gpuX.T, gpuX)
+    gpu_dotprod_2 = T.dot(gpuX.T, gpuS)
+    add_two_mat = T.add(gpuX,gpuS)
+
+    dotprod_1th = theano.function([gpuX], gpu_dotprod,allow_input_downcast=True)
+    dotprod_2th = theano.function([gpuX,gpuS], gpu_dotprod_2,allow_input_downcast=True)
+    add_mat_th = theano.function([gpuX,gpuS],add_two_mat,allow_input_downcast=True)
+
+    count_mat_A = np.zeros((n,n))
+    count_mat_B = np.zeros((n,n))
+    count_mat_C = np.zeros((n,n))
+    count_mat_D = np.zeros((n,n))
+
+    for idx,z in enumerate(zip(X,S,F)):
+        e=z[0]
+        s=z[1]
+        f=z[2]
+
+        e = e.astype(np.int)
+        s = s[:,None].astype(np.int)
+        f = f.astype(np.int)
+        
+        #A
+        es = e*s
+        count_mat_A = add_mat_th(dotprod_2th(es,e),count_mat_A)
+
+        #B
+        e1s = e*(1-s)
+        count_mat_B = add_mat_th(dotprod_2th(e1s,e),count_mat_B)
+
+        #C
+        fe = f*(1-e)
+        count_mat_C = add_mat_th(dotprod_2th(es,fe),count_mat_C)
+
+        #D
+        count_mat_D = add_mat_th(dotprod_2th(e1s,fe),count_mat_D)
+
+        if idx % 500 == 0:
+            dprint("Mult {0} of 5000".format(idx))
+
+    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
+    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
+    return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)
+
 
 def prep_for_compendium_predictions(circuitSNPs_model,nn_model,name):
     """
