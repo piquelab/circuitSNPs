@@ -1,1 +1,1 @@
-# CENNTIPEDE
+# circuitSNPs
