@@ -32,7 +32,7 @@ from collections import OrderedDict
 from scipy.stats import linregress
 
 
-from CENNTIPEDE import utils as CEUT
+from circuitSNPs import utils as CEUT
 
 
 def reverse_colourmap(cmap, name = 'my_cmap_r'):

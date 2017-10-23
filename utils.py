@@ -34,47 +34,7 @@ import scipy.stats as stats
 from statsmodels.sandbox.stats.multicomp import multipletests
 
 
-def cooccurrence_pvals1(four_arr_table, count_thresh=250,odds_cut=5):
-    
-    
-    def np_fisher(a,b,c,d):
-        oddsratio, pvalue = stats.fisher_exact([[a, b], [c, d]])
-        return(oddsratio,pvalue)
-    np_fisher2 = np.vectorize(np_fisher)
 
-    # eps = 7./3 - 4./3 -1
-
-    mats_mod1 = np.array(four_arr_table)
-    
-    # X_df = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
-    # motifs = X_df.loc[0,'M00001':'PBM0207'].index.tolist()
-    # motifs = np.array(motifs)
-    # factor_dict = CEUT.make_factor_dict()
-    
-    np.fill_diagonal(mats_mod1[0],0)
-    np.fill_diagonal(mats_mod1[1],0)
-    np.fill_diagonal(mats_mod1[2],0)
-    np.fill_diagonal(mats_mod1[3],0)
-
-    # odds_adj = ((mats_mod1[0]+1)/(mats_mod1[1]+1))/((mats_mod1[2]+1)/(mats_mod1[3]+1))
-    ct = count_thresh
-    idx = np.where((mats_mod1[0]>=ct) & (mats_mod1[1]>=ct) & (mats_mod1[2]>=ct) & (mats_mod1[3]>=ct))
-
-    idx1 = np.unique(idx[0])
-    idx2 = np.unique(idx[1])
-    idx3 = np.union1d(idx1,idx2)
-
-    mats_thresh = mats_mod1[:,idx3,:][:,:,idx3]
-
-    odds, pvals = np_fisher2(mats_thresh[0]+1,mats_thresh[1]+1,mats_thresh[2]+1,mats_thresh[3]+1)
-
-    bh_adjusted = multipletests(pvals.ravel(), alpha=0.001,method='fdr_bh')
-
-    pvals_adj = np.reshape(bh_adjusted[1],pvals.shape)
-
-
-    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/stat_tests/full_counts_oddsr_pval",[odds,pvals_adj])
-    return(mats_thresh,idx3,odds,pvals,pvals_adj)
 
 
 

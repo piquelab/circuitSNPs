@@ -10,16 +10,80 @@ import cPickle as pickle
 import re
 import random
 
-
 import scipy.stats as stats
 from statsmodels.sandbox.stats.multicomp import multipletests
 import theano
 from theano import tensor as T
 
+def cooccurrence_pvals1(four_arr_table, count_thresh=250,odds_cut=5,fdr=0.3):
+    
+    
+    def np_fisher(a,b,c,d):
+        oddsratio, pvalue = stats.fisher_exact([[a, b], [c, d]])
+        return(oddsratio,pvalue)
+    np_fisher2 = np.vectorize(np_fisher)
+
+    mats_mod1 = np.array(four_arr_table)
+    
+    np.fill_diagonal(mats_mod1[0],0)
+    np.fill_diagonal(mats_mod1[1],0)
+    np.fill_diagonal(mats_mod1[2],0)
+    np.fill_diagonal(mats_mod1[3],0)
+
+    ct = count_thresh
+    idx = np.where((mats_mod1[0]>=ct) & (mats_mod1[1]>=ct) & (mats_mod1[2]>=ct) & (mats_mod1[3]>=ct))
+
+    idx1 = np.unique(idx[0])
+    idx2 = np.unique(idx[1])
+    idx3 = np.union1d(idx1,idx2)
+
+    mats_thresh = mats_mod1[:,idx3,:][:,:,idx3]
+
+    _, pvals = np_fisher2(mats_thresh[0],mats_thresh[1],mats_thresh[2],mats_thresh[3])
+    
+    odds = (mats_thresh[0]+1/mats_thresh[1]+1)/(mats_thresh[2]+1/mats_thresh[3]+1)
+    bh_adjusted = multipletests(pvals.ravel(), alpha=fdr,method='fdr_bh')
+
+    pvals_adj = np.reshape(bh_adjusted[1],pvals.shape)
+
+    return(mats_thresh,idx3,odds,pvals,pvals_adj)
+
+def cooccurrence_pvals_rasqual(four_arr_table, count_thresh=250,odds_cut=5,fdr=0.3):
+    
+    
+    def np_fisher(a,b,c,d):
+        oddsratio, pvalue = stats.fisher_exact([[a, b], [c, d]])
+        return(oddsratio,pvalue)
+    np_fisher2 = np.vectorize(np_fisher)
+
+    mats_mod1 = np.array(four_arr_table)
+    
+    np.fill_diagonal(mats_mod1[0],0)
+    np.fill_diagonal(mats_mod1[1],0)
+    np.fill_diagonal(mats_mod1[2],0)
+    np.fill_diagonal(mats_mod1[3],0)
+
+    ct = count_thresh
+    idx = np.where((mats_mod1[0]>=ct) & (mats_mod1[1]>=ct) & (mats_mod1[2]>=ct) & (mats_mod1[3]>=ct))
+
+    idx1 = np.unique(idx[0])
+    idx2 = np.unique(idx[1])
+    idx3 = np.union1d(idx1,idx2)
+
+    mats_thresh = mats_mod1[:,idx3,:][:,:,idx3]
+
+    _, pvals = np_fisher2(mats_thresh[0],mats_thresh[1],mats_thresh[2],mats_thresh[3])
+    
+    odds = (mats_thresh[0]+1/mats_thresh[1]+1)/(mats_thresh[2]+1/mats_thresh[3]+1)
+    bh_adjusted = multipletests(pvals.ravel(), alpha=fdr,method='fdr_bh')
+
+    pvals_adj = np.reshape(bh_adjusted[1],pvals.shape)
+
+    return(mats_thresh,idx3,odds,pvals,pvals_adj)
+
 def load_motif_array():
     motif_file = "/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/motif_columns.txt"
     with open(motif_file,"r") as in_file:
-        # motifs = in_file.readlines().rstrip()
         motifs = [x.strip() for x in in_file.readlines()]
     return(np.array(motifs))
 
@@ -64,189 +128,75 @@ def motif_pairs_counts_to_factors(count_mat, n=1, how='factor'):
             print("Number of co-occurrences = {0}".format(int(idx)))
             print("----------")
 
+def cooccurrence_enrichment_compendium(data_mat,circuitSNP_thresh = 3.0, test_type='foot',split_size=5000):
 
-def find_ES_cooccurrence_matrix():
-    cs = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
-    motifs = cs.loc[0,'M00001':'PBM0207'].index.tolist()
-    M = cs.loc[:,'M00001':'PBM0207'].values
-    M[M==2] = 1
-    m,n = M.shape
-
-    del cs
-
-    count_mat = np.zeros((n,n))
-    sub_array = np.array_split(M,5000)
-
-    del M
-
-    for x in sub_array:
-        sub_count = x.T.dot(x)
-        np.fill_diagonal(sub_count, 0)
-        count_mat = count_mat + sub_count
-
-    np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs")
-
-# def find_ES_cooccurrence_matrix_gpu(all_updown_opposite='all',log_odds = 3.0):
-#     import theano
-#     from theano import tensor as T
-
-#     cs = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
-#     motifs = cs.loc[0,'M00001':'PBM0207'].index.tolist()
-
-#     cs = cs[cs['circuitSNPs-D'].abs() > log_odds ]
-#     M = cs.loc[:,'M00001':'PBM0207'].values
-#     m,n = M.shape
-
-#     del cs
-#     sub_array = np.array_split(M,5000)
-
-#     del M
-#     gpuM = T.matrix()
-#     gpuC = T.matrix()
-
-#     gpu_dotprod = T.dot(gpuM.T, gpuM)
-#     gpu_dotprod_opp = T.dot(gpuM.T, gpuC)
-
-#     add_two_mat = T.add(gpuM,gpuC)
-
-#     f = theano.function([gpuM], gpu_dotprod,allow_input_downcast=True)
-#     o = theano.function([gpuM,gpuC], gpu_dotprod_opp,allow_input_downcast=True)
-
-#     a = theano.function([gpuM,gpuC],add_two_mat,allow_input_downcast=True)
-
-
-
-#     if all_updown_opposite=='all':
-#         count_mat = np.zeros((n,n))
-#         for idx,x in enumerate(sub_array):
-#             x[x==2] = 1
-#             count_mat = a(f(x),count_mat)
-#             print("Mult {0} of 5000".format(idx))
-#         np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_both_bind_{0}".format(log_odds), count_mat)
-#         return(count_mat)
-#     elif all_updown_opposite == 'updown':
-#         count_mat_up = np.zeros((n,n))
-#         count_mat_down = np.zeros((n,n))
-#         for idx,x_up in enumerate(sub_array):
-#             x_down = x_up.copy()
-
-#             x_up[x_up==2] = 0
-#             x_down[x_down==1] = 0
-#             x_down[x_down==2] = 1
-
-#             count_mat_up = a(f(x_up),count_mat_up)
-#             count_mat_down = a(f(x_down),count_mat_down)
-#             print("Mult {0} of 5000".format(idx))
-
-#         np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_up_bind_{0}".format(log_odds), count_mat_up)
-#         np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_down_bind_{0}".format(log_odds), count_mat_down)
-#         return(count_mat_up,count_mat_down)
-
-#     elif all_updown_opposite == 'opposite':
-#         count_opp = np.zeros((n,n))
-
-#         for idx,x_up in enumerate(sub_array):
-#             x_down = x_up.copy()
-
-#             x_up[x_up==2] = 0
-#             x_down[x_down==1] = 0
-#             x_down[x_down==2] = 1
-
-#             count_a = o(x_up,x_down)
-#             count_b = o(x_down,x_up)
-
-#             count_opp = a(a(count_a,count_b),count_opp)
-#             # count_mat_down = a(f(x_down),count_mat_down)
-#             print("Mult {0} of 5000".format(idx))
-
-#         np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/full_pairs_gpu_opposite_bind_{0}".format(log_odds), count_opp)
-#         return(count_opp)
-
-
-# def cooccurrence_enrichment_gpu_1(log_odds = 3.0,cs_pre = None,foot=None):
-#     import theano
-#     from theano import tensor as T
-
-#     if cs_pre is None:
-#         print("Loading circuitSNPs Data")
-#         cs_pre = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
-#         cs_pre = cs_pre[(cs_pre.snp==1.0) & (cs_pre['es-count']>0)]
-#     else:
-#         print("circuitSNPs Data provided")
-
-#     if foot is None:
-#         print("Loading footprint data")
-#         foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints_pad.h5')
-#         foot = foot.iloc[cs_pre.index]
-#     else:
-#         print("footprint data provided")
-
-
-#     F = foot.iloc[:,3:].values
-#     F[F>1] = 1
-
-#     S = cs_pre['circuitSNPs-D'].abs() >= log_odds 
-#     S = S.astype(np.int).values
-
-#     X = cs_pre.loc[:,'M00001':'PBM0207'].values
-#     X[X>1] = 1
-#     m,n = X.shape
-
-#     del cs_pre
-#     del foot
-#     X = np.array_split(X,5000)
-#     S = np.array_split(S,5000)
-#     F = np.array_split(F,5000)
+    ES = data_mat.loc[:,'M00001':'PBM0207'].values > 1
+    FS = data_mat.loc[:,'M00001':'PBM0207'].values == 1
+    FS_ES = data_mat.loc[:,'M00001':'PBM0207'].values >= 1
     
-#     gpuX = T.matrix()
-#     gpuS = T.matrix()
+    CS = np.abs(data_mat['circuitSNPs-5-3-5'].values) >= circuitSNP_thresh
+    CS = CS[:,np.newaxis] 
+    
+    m,n = ES.shape
+    
+    ES = np.array_split(ES,split_size)
+    CS = np.array_split(CS,split_size)
+    FS = np.array_split(FS,split_size)
+    FS_ES = np.array_split(FS_ES,split_size)
 
-#     gpu_dotprod = T.dot(gpuX.T, gpuX)
-#     gpu_dotprod_2 = T.dot(gpuX.T, gpuS)
-#     add_two_mat = T.add(gpuX,gpuS)
+    gpuX = T.matrix()
+    gpuS = T.matrix()
 
-#     dotprod_1th = theano.function([gpuX], gpu_dotprod,allow_input_downcast=True)
-#     dotprod_2th = theano.function([gpuX,gpuS], gpu_dotprod_2,allow_input_downcast=True)
-#     add_mat_th = theano.function([gpuX,gpuS],add_two_mat,allow_input_downcast=True)
+    gpu_dotprod = T.dot(gpuX.T, gpuX)
+    gpu_dotprod_2 = T.dot(gpuX.T, gpuS)
+    add_two_mat = T.add(gpuX,gpuS)
 
-#     count_mat_A = np.zeros((n,n))
-#     count_mat_B = np.zeros((n,n))
-#     count_mat_C = np.zeros((n,n))
-#     count_mat_D = np.zeros((n,n))
+    dotprod_1th = theano.function([gpuX], gpu_dotprod,allow_input_downcast=True)
+    dotprod_2th = theano.function([gpuX,gpuS], gpu_dotprod_2,allow_input_downcast=True)
+    add_mat_th = theano.function([gpuX,gpuS],add_two_mat,allow_input_downcast=True)
 
-#     for idx,z in enumerate(zip(X,S,F)):
-#         e=z[0]
-#         s=z[1]
-#         f=z[2]
+    count_mat_A = np.zeros((n,n))
+    count_mat_B = np.zeros((n,n))
+    count_mat_C = np.zeros((n,n))
+    count_mat_D = np.zeros((n,n))
 
-#         # e = x==2
-#         # e = e.astype(np.int)
-#         s = s[:,None]
-#         # f = f-e
-#         # f = f.astype(np.int)
+    for idx,z in enumerate(zip(ES,CS,FS,FS_ES)):
+        es=z[0]
+        cs=z[1]
+        fs=z[2]
+        fs_es = z[3]
         
-#         #A
-#         es = e*s
-#         count_mat_A = add_mat_th(dotprod_2th(es,f),count_mat_A)
+        es = es.astype(np.int)
+        cs = cs.astype(np.int)
+        fs = fs.astype(np.int)
+        fs_es = fs_es.astype(np.int)
+        
 
-#         #B
-#         e1s = e*(1-s)
-#         count_mat_B = add_mat_th(dotprod_2th(e1s,f),count_mat_B)
+        if test_type=='foot':
+            esd = fs_es
+            e1sd = 1-fs_es
+        elif test_type=='effect':
+            esd = es
+            e1sd = 1-es
+        elif test_type=='circuit':
+            esd = es*cs
+            e1sd = 1-(es*cs)
+        #A
+        count_mat_A = add_mat_th(dotprod_2th(esd,fs_es),count_mat_A)
 
-#         #C
-#         # es = e*s
-#         count_mat_C = add_mat_th(dotprod_2th(es,(1-f)),count_mat_C)
+        #B
+        count_mat_B = add_mat_th(dotprod_2th(e1sd,fs_es),count_mat_B)
 
-#         #D
-#         # d = e*(1-s)
-#         count_mat_D = add_mat_th(dotprod_2th(e1s,(1-f)),count_mat_D)
+        #C
+        count_mat_C = add_mat_th(dotprod_2th(esd,1-fs_es),count_mat_C)
 
-#         if idx % 500 == 0:
-#             print("Mult {0} of 5000".format(idx))
+        #D
+        count_mat_D = add_mat_th(dotprod_2th(e1sd,1-fs_es),count_mat_D)
 
-#     # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
-#     # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
-#     return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)
+        if idx % 20 == 0:
+            print("{0} of {1}".format(idx,split_size))
+
+    return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)
 
 def cooccurrence_enrichment_gpu_1_rev2(log_odds = 3.0,data_mat=None):
     import theano
@@ -261,13 +211,9 @@ def cooccurrence_enrichment_gpu_1_rev2(log_odds = 3.0,data_mat=None):
 
     F = data_mat.loc[:,'M00001':'PBM0207'].values == 1
     
-    # F[F>1] = 1
-
     S = data_mat['circuitSNPs-D'].abs() >= log_odds 
-    # S = S.astype(np.int).values
 
     X = data_mat.loc[:,'M00001':'PBM0207'].values > 1
-    # X[X>1] = 1
     m,n = X.shape
 
     del data_mat
@@ -297,10 +243,8 @@ def cooccurrence_enrichment_gpu_1_rev2(log_odds = 3.0,data_mat=None):
         s=z[1]
         f=z[2]
 
-        # e = x==2
         e = e.astype(np.int)
         s = s[:,None].astype(np.int)
-        # f = f-e
         f = f.astype(np.int)
         
         #A
@@ -322,37 +266,32 @@ def cooccurrence_enrichment_gpu_1_rev2(log_odds = 3.0,data_mat=None):
         if idx % 500 == 0:
             print("Mult {0} of 5000".format(idx))
 
-    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
-    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
     return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)    
 
-def cooccurrence_enrichment_gpu_1_dsqtl(log_odds = 3.0,data_mat=None):
+def cooccurrence_enrichment_gpu_rasqual(data_mat,circuitSNP_thresh = 3.0, test_type='foot',split_size=1):
 
-
-    if data_mat is None:
-        print("Loading circuitSNPs Data")
-        data_mat = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs_with_footsnps.h5')
-        data_mat = data_mat[(data_mat.snp==1.0) & (data_mat['es-count']>0)]
-    else:
-        print("circuitSNPs Data provided")
-
-    F = data_mat.loc[:,'M00001':'PBM0207'].values == 1
+    ES_up = data_mat.loc[:,'M00001':'PBM0207'].values == 3
+    ES_down = data_mat.loc[:,'M00001':'PBM0207'].values == 2
     
-    # F[F>1] = 1
 
-    S = data_mat['circuitSNPs-D'].abs() >= log_odds 
-    # S = S.astype(np.int).values
-
-    X = data_mat.loc[:,'M00001':'PBM0207'].values > 1
-    # X[X>1] = 1
-    m,n = X.shape
-
-    del data_mat
-    del foot
-    X = np.array_split(X,5000)
-    S = np.array_split(S,5000)
-    F = np.array_split(F,5000)
+    # FS = data_mat.loc[:,'M00001':'PBM0207'].values == 1
+    # FS_ES = data_mat.loc[:,'M00001':'PBM0207'].values >= 1
     
+    CS = np.abs(data_mat['circuitSNPs-5-3-5'].values) >= circuitSNP_thresh
+    CS = CS[:,np.newaxis] 
+    
+    RAS = np.sign(np.log(data_mat['effect_size']/(1-data_mat['effect_size'])))
+    RAS = RAS[:,np.newaxis]
+    
+    m,n = ES_up.shape
+    
+    ES_up = np.array_split(ES_up,split_size)
+    ES_down = np.array_split(ES_down,split_size)
+    CS = np.array_split(CS,split_size)
+    # FS = np.array_split(FS,split_size)
+    RAS = np.array_split(RAS,split_size)
+    # FS_ES = np.array_split(FS_ES,split_size)
+
     gpuX = T.matrix()
     gpuS = T.matrix()
 
@@ -369,121 +308,288 @@ def cooccurrence_enrichment_gpu_1_dsqtl(log_odds = 3.0,data_mat=None):
     count_mat_C = np.zeros((n,n))
     count_mat_D = np.zeros((n,n))
 
-    for idx,z in enumerate(zip(X,S,F)):
-        e=z[0]
-        s=z[1]
-        f=z[2]
-
-        # e = x==2
-        e = e.astype(np.int)
-        s = s[:,None].astype(np.int)
-        # f = f-e
-        f = f.astype(np.int)
+    for idx,z in enumerate(zip(ES_up,ES_down,CS,RAS)):
+        es_up=z[0]
+        es_down=z[1]
+        cs=z[2]
+        ras=z[3]
         
+        es_up = es_up.astype(np.int)
+        es_down = -1*es_down.astype(np.int)
+        es = es_up + es_down
+
+        ((np.sign(A) * np.sign(B[:,np.newaxis])) ==1).astype(np.int)
+
+        cs = cs.astype(np.int)
+        ras = ras.astype(np.int)
+        # fs = fs.astype(np.int)
+        # fs_es = fs_es.astype(np.int)
+        
+
+        # if test_type=='foot':
+        esd = fs_es*ras
+            e1sd = fs_es*(1-ras)
+        # elif test_type=='effect':
+            # esd = es
+            # e1sd = 1-es
+        # elif test_type=='circuit':
+            # esd = es*cs
+            # e1sd = 1-(es*cs)
         #A
-        es = e*s
-        count_mat_A = add_mat_th(dotprod_2th(es,f),count_mat_A)
+        count_mat_A = add_mat_th(dotprod_2th(esd,fs_es),count_mat_A)
 
         #B
-        e1s = e*(1-s)
-        count_mat_B = add_mat_th(dotprod_2th(e1s,f),count_mat_B)
+        count_mat_B = add_mat_th(dotprod_2th(e1sd,fs_es),count_mat_B)
 
         #C
-        # es = e*s
-        count_mat_C = add_mat_th(dotprod_2th(es,(1-f)),count_mat_C)
+        count_mat_C = add_mat_th(dotprod_2th(esd,1-fs_es),count_mat_C)
 
         #D
-        # d = e*(1-s)
-        count_mat_D = add_mat_th(dotprod_2th(e1s,(1-f)),count_mat_D)
+        count_mat_D = add_mat_th(dotprod_2th(e1sd,1-fs_es),count_mat_D)
 
-        if idx % 500 == 0:
-            print("Mult {0} of 5000".format(idx))
+        if idx % 20 == 0:
+            print("{0} of {1}".format(idx,split_size))
 
-    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
-    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
+    return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)    
+
+def cooccurrence_enrichment_gpu_1_dsqtl(data_mat,circuitSNP_thresh = 3.0, test_type='circuit'):
+
+    ES = data_mat.loc[:,'M00001':'PBM0207'].values > 1
+    FS = data_mat.loc[:,'M00001':'PBM0207'].values == 1
+    FS_ES = data_mat.loc[:,'M00001':'PBM0207'].values >= 1
+    
+    CS = np.abs(data_mat['5'].values) >= circuitSNP_thresh
+    CS = CS[:,np.newaxis] 
+    
+    DSQTL = data_mat['label_x'].values == 1
+    DSQTL = DSQTL[:,np.newaxis]
+    
+    m,n = ES.shape
+    
+    ES = np.array_split(ES,2)
+    CS = np.array_split(CS,2)
+    FS = np.array_split(FS,2)
+    DSQTL = np.array_split(DSQTL,2)
+    FS_ES = np.array_split(FS_ES,2)
+
+    gpuX = T.matrix()
+    gpuS = T.matrix()
+
+    gpu_dotprod = T.dot(gpuX.T, gpuX)
+    gpu_dotprod_2 = T.dot(gpuX.T, gpuS)
+    add_two_mat = T.add(gpuX,gpuS)
+
+    dotprod_1th = theano.function([gpuX], gpu_dotprod,allow_input_downcast=True)
+    dotprod_2th = theano.function([gpuX,gpuS], gpu_dotprod_2,allow_input_downcast=True)
+    add_mat_th = theano.function([gpuX,gpuS],add_two_mat,allow_input_downcast=True)
+
+    count_mat_A = np.zeros((n,n))
+    count_mat_B = np.zeros((n,n))
+    count_mat_C = np.zeros((n,n))
+    count_mat_D = np.zeros((n,n))
+
+    for idx,z in enumerate(zip(ES,CS,FS,DSQTL,FS_ES)):
+        es=z[0]
+        cs=z[1]
+        fs=z[2]
+        dsqtl=z[3]
+        fs_es = z[4]
+        
+        es = es.astype(np.int)
+        cs = cs.astype(np.int)
+        dsqtl = dsqtl.astype(np.int)
+        fs = fs.astype(np.int)
+        fs_es = fs_es.astype(np.int)
+        
+
+        if test_type=='foot':
+            esd = fs_es*dsqtl
+            e1sd = fs_es*(1-dsqtl)
+        elif test_type=='effect':
+            esd = es
+            e1sd = 1-es
+        elif test_type=='circuit':
+            esd = es*cs
+            e1sd = 1-(es*cs)
+        #A
+        count_mat_A = add_mat_th(dotprod_2th(esd,fs_es),count_mat_A)
+
+        #B
+        count_mat_B = add_mat_th(dotprod_2th(e1sd,fs_es),count_mat_B)
+
+        #C
+        count_mat_C = add_mat_th(dotprod_2th(esd,1-fs_es),count_mat_C)
+
+        #D
+        count_mat_D = add_mat_th(dotprod_2th(e1sd,1-fs_es),count_mat_D)
+
+        if idx % 20 == 0:
+            print("Mult {0} of 20".format(idx))
+
     return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)
 
-# def cooccurrence_enrichment_gpu_2(log_odds = 3.0,cs_pre = None,foot=None):
-#     import theano
-#     from theano import tensor as T
 
-#     if cs_pre is None:
-#         print("Loading circuitSNPs Data")
-#         cs_pre = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNP_predictions_50_50_full.h5')
-#         cs_pre = cs_pre[(cs_pre.snp==1.0) & (cs_pre['es-count']>0)]
-#     else:
-#         print("circuitSNPs Data provided")
+def cooccurrence_enrichment_gpu_1_compendium(data_mat,circuitSNP_thresh=3.0):
 
-#     if foot is None:
-#         print("Loading footprint data")
-#         foot = pd.read_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprints_pad.h5')
-#         foot = foot.iloc[cs_pre.index]
-#     else:
-#         print("footprint data provided")
-
-
-#     F = foot.iloc[:,3:].values
-#     F[F>1] = 1
-
-#     S = cs_pre['circuitSNPs-D'].abs() >= log_odds 
-#     S = S.astype(np.int).values
-
-#     X = cs_pre.loc[:,'M00001':'PBM0207'].values
-#     X[X>1] = 1
-#     m,n = X.shape
-
-#     del cs_pre
-#     del foot
-#     X = np.array_split(X,5000)
-#     S = np.array_split(S,5000)
-#     F = np.array_split(F,5000)
+    ES = data_mat.loc[:,'M00001':'PBM0207'].values > 1
+    # FS = data_mat.loc[:,'M00001':'PBM0207'].values == 1
+    FS_ES = data_mat.loc[:,'M00001':'PBM0207'].values >= 1
     
-#     gpuX = T.matrix()
-#     gpuS = T.matrix()
+    CS = np.abs(data_mat['circuitSNPs-5-3-5'].values) >= circuitSNP_thresh
+    CS = CS[:,np.newaxis] 
+    
+    # DSQTL = data_mat['label_x'].values == 1
+    # DSQTL = DSQTL[:,np.newaxis]
+    
+    m,n = ES.shape
+    
+    ES = np.array_split(ES,5000)
+    CS = np.array_split(CS,5000)
+    # FS = np.array_split(FS,2)
+    # DSQTL = np.array_split(DSQTL,2)
+    FS_ES = np.array_split(FS_ES,5000)
 
-#     gpu_dotprod = T.dot(gpuX.T, gpuX)
-#     gpu_dotprod_2 = T.dot(gpuX.T, gpuS)
-#     add_two_mat = T.add(gpuX,gpuS)
+    gpuX = T.matrix()
+    gpuS = T.matrix()
 
-#     dotprod_1th = theano.function([gpuX], gpu_dotprod,allow_input_downcast=True)
-#     dotprod_2th = theano.function([gpuX,gpuS], gpu_dotprod_2,allow_input_downcast=True)
-#     add_mat_th = theano.function([gpuX,gpuS],add_two_mat,allow_input_downcast=True)
+    gpu_dotprod = T.dot(gpuX.T, gpuX)
+    gpu_dotprod_2 = T.dot(gpuX.T, gpuS)
+    add_two_mat = T.add(gpuX,gpuS)
 
-#     count_mat_A = np.zeros((n,n))
-#     count_mat_B = np.zeros((n,n))
-#     count_mat_C = np.zeros((n,n))
-#     count_mat_D = np.zeros((n,n))
+    dotprod_1th = theano.function([gpuX], gpu_dotprod,allow_input_downcast=True)
+    dotprod_2th = theano.function([gpuX,gpuS], gpu_dotprod_2,allow_input_downcast=True)
+    add_mat_th = theano.function([gpuX,gpuS],add_two_mat,allow_input_downcast=True)
 
-#     for idx,z in enumerate(zip(X,S,F)):
-#         e=z[0]
-#         s=z[1]
-#         f=z[2]
+    count_mat_A = np.zeros((n,n))
+    count_mat_B = np.zeros((n,n))
+    count_mat_C = np.zeros((n,n))
+    count_mat_D = np.zeros((n,n))
 
-#         # e = x==2
-#         s = s[:,None]
-#         # f = f-e
+    for idx,z in enumerate(zip(ES,CS,FS_ES)):
+    # for idx,z in enumerate(FS_ES):
+        es=z[0]
+        cs=z[1]
+        # fs=z[2]
+        # dsqtl=z[3]
+        fs_es = z[2]
+        # fs_es = z
         
-#         #A
-#         es = e*s
-#         count_mat_A = add_mat_th(dotprod_2th(es,e),count_mat_A)
+        es = es.astype(np.int)
+        cs = cs.astype(np.int)
+        # dsqtl = dsqtl.astype(np.int)
+        # fs = fs.astype(np.int)
+        fs_es = fs_es.astype(np.int)
+        
 
-#         #B
-#         e1s = e*(1-s)
-#         count_mat_B = add_mat_th(dotprod_2th(e1s,e),count_mat_B)
+        # if test_type=='foot':
+            # esd = fs_es*dsqtl
+            # e1sd = fs_es*(1-dsqtl)
+        esd = cs*es
+        e1sd = (1-cs)*es
+        # elif test_type=='effect':
+            # esd = es*dsqtl
+            # e1sd = es*(1-dsqtl)
+        # elif test_type=='circuit':
+            # esd = es*cs*dsqtl
+            # e1sd = es*cs*(1-dsqtl)
+        #A
+        try:
+            
+        
+            count_mat_A = add_mat_th(dotprod_2th(esd,fs_es),count_mat_A)
 
-#         #C
-#         fe = f*(1-e)
-#         count_mat_C = add_mat_th(dotprod_2th(es,fe),count_mat_C)
+            #B
+            count_mat_B = add_mat_th(dotprod_2th(e1sd,fs_es),count_mat_B)
 
-#         #D
-#         count_mat_D = add_mat_th(dotprod_2th(e1s,fe),count_mat_D)
+            #C
+            count_mat_C = add_mat_th(dotprod_2th(esd,1-fs_es),count_mat_C)
 
-#         if idx % 500 == 0:
-#             print("Mult {0} of 5000".format(idx))
+            #D
+            count_mat_D = add_mat_th(dotprod_2th(e1sd,1-fs_es),count_mat_D)
+        except:
+            return(esd, e1sd,esd,e1sd)
+        if idx % 250== 0:
+            print("Mult {0} of 5000".format(idx))
+        # print(idx)
 
-#     # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
-#     # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
-#     return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)
+    return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)
+
+def cooccurrence_enrichment_gpu_2_dsqtl(data_mat,circuitSNP_thresh = 3.0, dsqtl_test=False):
+
+    ES = data_mat.loc[:,'M00001':'PBM0207'].values > 1
+    FS = data_mat.loc[:,'M00001':'PBM0207'].values == 1
+    FS_ES = data_mat.loc[:,'M00001':'PBM0207'].values >= 1
+    
+    CS = np.abs(data_mat['5'].values) >= circuitSNP_thresh
+    CS = CS[:,np.newaxis] 
+    
+    DSQTL = data_mat['label_x'].values == 1
+    DSQTL = DSQTL[:,np.newaxis]
+    
+    
+        
+    m,n = ES.shape
+    
+    ES = np.array_split(ES,2)
+    CS = np.array_split(CS,2)
+    FS = np.array_split(FS,2)
+    DSQTL = np.array_split(DSQTL,2)
+    FS_ES = np.array_split(FS_ES,2)
+
+    gpuX = T.matrix()
+    gpuS = T.matrix()
+
+    gpu_dotprod = T.dot(gpuX.T, gpuX)
+    gpu_dotprod_2 = T.dot(gpuX.T, gpuS)
+    add_two_mat = T.add(gpuX,gpuS)
+
+    dotprod_1th = theano.function([gpuX], gpu_dotprod,allow_input_downcast=True)
+    dotprod_2th = theano.function([gpuX,gpuS], gpu_dotprod_2,allow_input_downcast=True)
+    add_mat_th = theano.function([gpuX,gpuS],add_two_mat,allow_input_downcast=True)
+
+    count_mat_A = np.zeros((n,n))
+    count_mat_B = np.zeros((n,n))
+    count_mat_C = np.zeros((n,n))
+    count_mat_D = np.zeros((n,n))
+
+    for idx,z in enumerate(zip(ES,CS,FS,DSQTL,FS_ES)):
+        es=z[0]
+        cs=z[1]
+        fs=z[2]
+        dsqtl=z[3]
+        fs_es = z[4]
+        
+        es = es.astype(np.int)
+        cs = cs.astype(np.int)
+        dsqtl = dsqtl.astype(np.int)
+        fs = fs.astype(np.int)
+        fs_es = fs_es.astype(np.int)
+        
+        #A
+        if dsqtl_test:
+            esd = es*cs*dsqtl
+        else:
+            esd = es*cs
+        count_mat_A = add_mat_th(dotprod_2th(esd,es),count_mat_A)
+
+        #B
+        if dsqtl_test:
+            e1sd = es*(1-cs)*dsqtl
+        else:
+            e1sd = es*(1-cs)
+        count_mat_B = add_mat_th(dotprod_2th(e1sd,es),count_mat_B)
+
+        #C
+        count_mat_C = add_mat_th(dotprod_2th(esd,1-fs),count_mat_C)
+
+        #D
+        count_mat_D = add_mat_th(dotprod_2th(e1sd,1-fs),count_mat_D)
+
+        if idx % 20 == 0:
+            print("Mult {0} of 20".format(idx))
+
+    return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)
+
 
 def cooccurrence_enrichment_gpu_2_rev2(log_odds = 3.0,data_mat=None):
     import theano
@@ -549,6 +655,5 @@ def cooccurrence_enrichment_gpu_2_rev2(log_odds = 3.0,data_mat=None):
         if idx % 500 == 0:
             dprint("Mult {0} of 5000".format(idx))
 
-    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_es_bind_{0}".format(log_odds), count_mat_ES)
-    # np.save("/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/factor_pairs/test1_footsnp_{0}".format(log_odds), count_mat_NonES)
+    
     return(count_mat_A,count_mat_B,count_mat_C,count_mat_D)
