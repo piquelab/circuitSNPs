@@ -225,6 +225,50 @@ def make_all_circuitSNPsD_including_non_effect(thresh = 3):
     centiSNPs_df = centiSNPs_df[colnames]
     centiSNPs_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs_with_footsnps_thresh_{0}.h5'.format(thresh),'df',mode='w')
 
+
+def make_all_circuitSNPsD_lcl_for_supp():
+    all_snps_bed_file = '/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/results/all.centiSnps.unique.bed.gz'
+    centiSNPs_df = pd.read_csv(all_snps_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
+    centiSNPs_df.set_index(['chr', 'stop'], inplace=True)
+
+    footprint_snps = glob.glob('/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/summaryPerMotif/anno_lcl/*.gz')
+    footprint_snps = sorted(footprint_snps)
+
+    for idx,footprint_snp in enumerate(footprint_snps):
+        footsnp_df = pd.read_csv(footprint_snp,delim_whitespace=True,header=None,names=['chr','start','stop','motif','binding_strength','strand','ref_lr','alt_lr','ref','alt','footprint_snp'])
+        footsnp_df.set_index(['chr', 'start'], inplace=True)
+
+        try:
+           motif_name = footsnp_df['motif'][0]
+        except:
+            motif_name = os.path.basename(footprint_snp).split(".")[0]
+
+
+        binding_up = (footsnp_df['ref_lr']>=footsnp_df['alt_lr'])& (np.abs(footsnp_df['ref_lr']-footsnp_df['alt_lr'])>=3)
+
+        binding_down = (footsnp_df['ref_lr']<footsnp_df['alt_lr'])& (np.abs(footsnp_df['ref_lr']-footsnp_df['alt_lr'])>=3)
+
+        footsnp_df['direct_snps'] = 1
+        centiSNPs_df[motif_name] = 0
+
+        merge_idx = footsnp_df.index.intersection(centiSNPs_df.index)
+
+        footsnp_df.loc[binding_up,'direct_snps'] = 2
+        footsnp_df.loc[binding_down,'direct_snps'] = 3
+
+        centiSNPs_df.loc[merge_idx,motif_name] = footsnp_df['direct_snps']
+
+        centiSNPs_df[motif_name] = centiSNPs_df[motif_name].astype(np.uint8)
+        print(idx)
+
+    centiSNPs_df.reset_index(inplace=True)
+    colnames = centiSNPs_df.columns.tolist()
+    colnames[2]='stop'
+    colnames[1]='start'
+    centiSNPs_df = centiSNPs_df[colnames]
+    centiSNPs_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_circuitSNPs_lcl_supp.h5','df',mode='w')
+
+
 def make_all_circuitSNPsD_lcl():
     all_snps_bed_file = '/wsu/home/groups/piquelab/allCentipede/updatedModel/pwmRescan/fullAllgenome/results/all.centiSnps.unique.bed.gz'
     centiSNPs_df = pd.read_csv(all_snps_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])
@@ -310,7 +354,7 @@ def make_centiSNPs_footprints_windowed(flank_size=150):
     centiSNP_df.to_hdf('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/centiSNPs_footprint_window_{0}.h5'.format(flank_size),'df',mode='w')
 
 def make_centiSNPs_footprints_windowed_lcl(flank_size=150):
-    all_snps_bed_file = "/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/compendium_effect_snps.bed"
+    all_snps_bed_file = "/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/old/compendium_effect_snps.bed"
     footprint_files = glob.glob('/nfs/rprdata/Anthony/data/combo_20170721/combo_lcl/*.gz')
     footprint_files = sorted(footprint_files)
     centiSNP_df = pd.read_csv(all_snps_bed_file,delim_whitespace=True,header=None,names=["chr","start","stop"])

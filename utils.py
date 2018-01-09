@@ -174,6 +174,61 @@ def circD_beers_replicates_full_model(es_df,foot_df,model_prefix,thresh=5,model_
     except:
         return(y_pred)
 
+def circD_beers_replicates_windows_5_3_model(es_df,foot_df, window_size, model_prefix='5_3',model_window='window'):
+    """
+    This model now uses 2 and 3 as effect snp labels, 1 indicates a footsnp, and 0 indicates none of them.
+    """
+    es = es_df.loc[:,'M00001':'PBM0207'].values
+    m,n = es.shape
+    
+    foot = foot_df.loc[:,'M00001':'PBM0207'].values
+    
+    y_pred = np.empty((m,10))
+    model_dir = '/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/circuitSNP_model/replicate_test/full_model/snp_model'
+
+    ## Load the 10 trained models into a dict 
+    models = glob.glob("{0}/circuitSNP_{1}_*.h5".format(model_dir,model_prefix))
+    model_dict = {}
+    for mod_idx,mod in enumerate(models):
+        model_dict[mod_idx] = load_model(mod)
+    
+    ## For each SNP, make prediction with each NN model.
+    for idx in np.arange(m):
+        foot_vect_t = foot[idx,:].copy()
+
+        ES_ref = np.where(es[idx,:]==2)[0]
+        ES_alt = np.where(es[idx,:]==3)[0]
+
+        tmp_ref = foot_vect_t[None,:].copy()
+        tmp_ref[0][ES_alt] = 0
+
+        tmp_alt = foot_vect_t[None,:].copy()
+        tmp_alt[0][ES_ref] = 0
+        tmp_alt[0][ES_alt] = 1
+
+        for model_idx in np.arange(10):
+            model = model_dict[model_idx]
+            es_pred_ref = np.squeeze(model.predict(tmp_ref))
+            es_pred_alt = np.squeeze(model.predict(tmp_alt))
+            lo = log_diffs(es_pred_ref,es_pred_alt)
+
+            y_pred[idx,model_idx]=lo
+        if idx % 7000 == 0:
+            print("Predicted {0} SNPs".format(idx))
+
+    try:
+        df2=pd.DataFrame(data=y_pred)
+        df2 = pd.concat([es_df[['chr','start','stop','rsID_x','abs_gkm_SVM','label']],df2],axis=1)
+        df2['label'] = es_df['label']
+        if model_window=='snp':
+            df2.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/snp_model/beers_rep_preds_{0}_thresh_{1}.tab'.format(model_prefix,window_size),sep='\t',index=False)
+            return(df2)
+        elif model_window == 'window':
+            df2.to_csv('/wsu/home/al/al37/al3786/CENNTIPEDE/circuitSNPs/compendium_predictions/replicates/window_model/beers_rep_preds_{0}_thresh_{1}.tab'.format(model_prefix,window_size),sep='\t',index=False)
+            return(df2)        
+    except:
+        return(y_pred)
+
 def circD_rasqual_replicates_full_model(es_df,foot_df,model_prefix,thresh=5,model_window='snp'):
     """
     This model now uses 2 and 3 as effect snp labels, 1 indicates a footsnp, and 0 indicates none of them.
